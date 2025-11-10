@@ -15,10 +15,13 @@ def health():
 
 
 @app.route('/')
-def home():
-    """main page - renders index.html"""
+def index():
+    """Home page - redirects to dashboard.
+    
+    Returns:
+        Response: Rendered index template.
+    """
     return render_template('index.html')
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
