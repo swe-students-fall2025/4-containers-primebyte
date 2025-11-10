@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: soundwatch-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  web-app:
+    build: ./web-app
+    container_name: soundwatch-web-app
+    depends_on:
+      - mongodb
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+
+volumes:
+  mongo-data:
