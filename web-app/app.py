@@ -14,8 +14,7 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
-@app.get("/")
-def dashboard():
-    """Render the main dashboard page."""
-    # For Day 1, just render a placeholder dashboard.
-    return render_template("dashboard.html")
+@app.route('/')
+def home():
+    """main page - renders index.html"""
+    return render_template('index.html')
