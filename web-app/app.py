@@ -1,9 +1,9 @@
 """SoundWatch web application module."""
+import os
+from datetime import datetime
 
 from flask import Flask, render_template, jsonify
 from pymongo import MongoClient
-import os
-from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
