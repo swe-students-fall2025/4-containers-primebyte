@@ -35,10 +35,12 @@ def _get_client() -> MongoClient:
 
 
 def get_db():
+    """Return the default MongoDB database."""
     return _get_client().get_default_database()
 
 
 def measurements():
+    """Return the measurements collection from the database."""
     return get_db()["measurements"]
 
 
@@ -52,21 +54,25 @@ def ensure_indexes():
 # ---- Routes -----------------------------------------------------------------
 @app.route("/")
 def index():
+    """Redirect root URL to dashboard."""
     return redirect(url_for("dashboard"))
 
 
 @app.route("/dashboard")
 def dashboard():
+    """Render the dashboard page."""
     return render_template("index.html")
 
 
 @app.route("/realtime")
 def realtime_monitor():
+    """Render the real-time monitoring page."""
     return render_template("realtime.html")
 
 
 @app.route("/history")
 def history():
+    """Render the history page."""
     return render_template("history.html")
 
 
