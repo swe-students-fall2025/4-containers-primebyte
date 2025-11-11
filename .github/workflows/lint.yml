@@ -21,6 +21,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pipenv
           pipenv sync --dev --python $(which python)
+          pipenv run pip install "pylint>=3.2,<4" "astroid>=3.2.2,<4"
           pipenv shell --fancy --python $(which python)
       - name: Lint with pylint
         if: ${{ hashFiles(format('{0}/**/*.py', matrix.subdir)) != '' }}
