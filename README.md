@@ -6,7 +6,20 @@ Build a containerized app that uses machine learning. See [instructions](./instr
 
 # SoundWatch
 
-Day 1 setup: a simple Flask web app and MongoDB running in containers.
+SoundWatch continuously samples ambient audio, classifies each snippet into silent/quiet/normal/loud/very loud bands, and surfaces the history in a sleek Flask dashboard. MongoDB persists the decibel readings and labels so both the ML client and the web UI stay perfectly in sync across containers.
+
+## Project Vision
+
+Every N seconds the microphone-backed client records a short snippet, measures its loudness, and classifies it as silent, quiet, normal, loud, or very loud. Those snapshots get stored in MongoDB so the Flask web app can display real-time and historical charts of the noise environment. This pipeline satisfies the multi-container requirement while giving us clear milestones for sensor capture, analysis, storage, and visualization.
+
+## Team
+
+- [Saud Alsheddy](https://github.com/Saud-Al5)
+- [Jasmine Zhu](https://github.com/jasminezjr)
+- [Esther Feng](https://github.com/yf2685-beep)
+- [Pranathi Chinthalapani](https://github.com/PranathiChin)
+- [William Chan](https://github.com/wc2184)
+
 
 ## How to run
 
@@ -22,7 +35,17 @@ docker-compose up --build
 3. Open in browser:
 
 - http://localhost:5000/ (should go to the dashboard)
-- http://localhost:5000/api/health (should check health)
+- http://localhost:5000/health (should check health)
+
+
+## Web App Routes
+
+- `/` — renders the dashboard UI.
+- `/health` — lightweight health probe with status metadata.
+- `/api/current` — returns the latest mocked noise reading.
+- `/api/stats` — exposes aggregate decibel stats.
+- `/api/history` — supplies historical timestamps, levels, and labels.
+
 
 ## Development Setup
 
