@@ -163,6 +163,14 @@
             padding: 40px;
             color: #666;
         }
+
+        .stat-item .noise-level {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        
     </style>
 </head>
 <body>
@@ -291,6 +299,10 @@
                     document.getElementById('avg-db').textContent = data.average_db.toFixed(1);
                     document.getElementById('max-db').textContent = data.max_db.toFixed(1);
                     document.getElementById('min-db').textContent = data.min_db.toFixed(1);
+                    
+                    const noiseLevelElement = document.getElementById('noise-level');
+                    noiseLevelElement.textContent = data.noise_level.toUpperCase();
+                    noiseLevelElement.className = 'noise-level ' + data.noise_level.toLowerCase().replace(' ', '-');
                 })
                 .catch(error => {
                     console.error('Error fetching statistics:', error);
