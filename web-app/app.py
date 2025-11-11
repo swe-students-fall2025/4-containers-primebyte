@@ -70,7 +70,13 @@ def noise_stats():
         JSON: Noise statistics.
     """
     return jsonify(
-        {"average_db": 42.3, "max_db": 67.8, "min_db": 25.1, "data_count": 150}
+        {
+            "average_db": 42.3,
+            "max_db": 67.8,
+            "min_db": 25.1,
+            "data_count": 150,
+            "noise_level": "normal",
+        }
     )
 
 
