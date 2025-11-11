@@ -3,7 +3,7 @@
 import os
 from datetime import datetime
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, redirect, url_for
 from pymongo import MongoClient
 
 app = Flask(__name__)
@@ -22,12 +22,26 @@ def get_db():
 
 @app.route("/")
 def index():
-    """Home page - redirects to dashboard.
+    """main page - redirect to dashboard."""
+    return redirect(url_for("dashboard"))
 
-    Returns:
-        Response: Rendered index template.
-    """
+
+@app.route("/dashboard")
+def dashboard():
+    """dashboard page"""
     return render_template("index.html")
+
+
+@app.route("/realtime")
+def realtime_monitor():
+    """real time monitor page"""
+    return render_template("realtime.html")
+
+
+@app.route("/history")
+def history():
+    """history page"""
+    return render_template("history.html")
 
 
 @app.route("/health")

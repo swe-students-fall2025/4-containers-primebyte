@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Noise Monitor System{% endblock %}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 SoundWatch</h1>
+            <p>Real-time audio level monitoring and analysis</p>
+        </div>
+        
+        <div class="nav-tabs">
+            <a href="{{ url_for('dashboard') }}" class="nav-tab {% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('realtime_monitor') }}" class="nav-tab {% if request.endpoint == 'realtime_monitor' %}active{% endif %}">Real-time</a>
+            <a href="{{ url_for('history') }}" class="nav-tab {% if request.endpoint == 'history' %}active{% endif %}">History</a>
+        </div>
+        
+        {% block content %}{% endblock %}
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

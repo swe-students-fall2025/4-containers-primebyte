@@ -1,0 +1,162 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.header h1 {
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 2.5em;
+}
+
+.header p {
+    color: #666;
+    font-size: 1.1em;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.card {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.status-card {
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.status-card h3 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.3em;
+}
+
+.noise-level {
+    font-size: 2.5em;
+    font-weight: bold;
+    margin: 15px 0;
+}
+
+.decibel-value {
+    font-size: 1.5em;
+    color: #666;
+    margin: 10px 0;
+}
+
+.last-updated {
+    font-size: 0.9em;
+    color: #888;
+    margin-top: 10px;
+}
+
+/* Noise level colors */
+.silent { color: #2ecc71; }
+.quiet { color: #27ae60; }
+.normal { color: #f39c12; }
+.loud { color: #e74c3c; }
+.very-loud { color: #c0392b; }
+
+.chart-container {
+    height: 300px;
+    position: relative;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+}
+
+.stat-value {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #333;
+}
+
+.stat-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+
+.nav-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.nav-tab {
+    padding: 10px 20px;
+    margin: 0 5px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.nav-tab.active {
+    background: #667eea;
+    color: white;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.stat-item .noise-level {
+    font-size: 1.8em;
+    font-weight: bold;
+    margin: 5px 0;
+}
