@@ -50,7 +50,7 @@ def classify_noise(decibels: float) -> str:
 
 def run_loop():
     """Main loop will use the functions above
-    to periodically insert readings into the 'readings' collection.
+    to periodically insert readings into the 'measurements' collection.
     """
 
     raise NotImplementedError("ML client loop not implemented yet.")

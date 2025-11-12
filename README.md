@@ -42,7 +42,7 @@ docker-compose up --build
 
 - `/` — renders the dashboard UI.
 - `/health` — lightweight health probe with status metadata.
-- `/api/current` — returns the latest mocked noise reading.
+- `/api/current` — returns the latest noise reading.
 - `/api/stats` — exposes aggregate decibel stats.
 - `/api/history` — supplies historical timestamps, levels, and labels.
 
