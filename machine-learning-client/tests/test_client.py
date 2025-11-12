@@ -1,7 +1,5 @@
 """Unit tests for the ML client functions."""
 
-from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
-
 import os
 import sys
 import unittest
@@ -9,6 +7,8 @@ from unittest.mock import patch, MagicMock
 
 # Add the parent directory to Python path to import client
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
 
 
 class TestDatabaseFunctions(unittest.TestCase):
@@ -188,8 +188,6 @@ class TestRunLoop(unittest.TestCase):
 
     def test_run_loop_not_implemented(self):
         """Test that run_loop raises NotImplementedError."""
-        from client import run_loop
-
         with self.assertRaises(NotImplementedError):
             run_loop()
 
