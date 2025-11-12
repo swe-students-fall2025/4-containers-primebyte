@@ -1,17 +1,14 @@
 """Unit tests for the ML client functions."""
 
+from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
+
 import os
+import sys
 import unittest
 from unittest.mock import patch, MagicMock
-import random
 
-# Import the functions to test
-import sys
-import os
-
-sys.path.append(os.path.join(os.path.dirname(__file__)))
-
-from client import get_db, get_interval_seconds, fake_decibels, classify_noise
+# Add the parent directory to Python path to import client
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class TestDatabaseFunctions(unittest.TestCase):
