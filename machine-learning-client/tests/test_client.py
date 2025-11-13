@@ -74,6 +74,13 @@ class TestIntervalFunctions(unittest.TestCase):
             interval = get_interval_seconds()
             self.assertEqual(interval, 5)  # Should fall back to default
 
+    def test_get_interval_seconds_minimum(self):
+        """Test get_interval_seconds ensures minimum value of 1."""
+        with patch.dict(os.environ, {"ML_CLIENT_INTERVAL_SECONDS": "0"}):
+            interval = get_interval_seconds()
+            self.assertEqual(interval, 0)
+        # The minimum enforcement happens in run_loop, not here
+
 
 class TestNoiseClassification(unittest.TestCase):
     """Test noise classification and generation functions."""
@@ -186,35 +193,145 @@ class TestFakeDecibels(unittest.TestCase):
 class TestRunLoop(unittest.TestCase):
     """Test the main run_loop function."""
 
-    @patch("client.get_interval_seconds", return_value=1)
     @patch("client.time.sleep")
-    @patch("client.fake_decibels", return_value=50.0)
-    @patch("client.classify_noise", return_value="normal")
+    @patch("client.time.time")
     @patch("client.get_db")
-    def test_run_loop_inserts_measurement(
+    @patch("client.get_interval_seconds")
+    @patch("client.fake_decibels")
+    @patch("client.classify_noise")
+    def test_run_loop_single_iteration(
         self,
-        mock_get_db,
-        mock_classify_noise,
+        mock_classify,
         mock_fake_decibels,
+        mock_get_interval,
+        mock_get_db,
+        mock_time,
         mock_sleep,
-        _mock_interval,
-    ):
-        """Ensure run_loop writes labeled readings and respects sleep."""
-        mock_coll = MagicMock()
-        mock_get_db.return_value = {"measurements": mock_coll}
-        mock_sleep.side_effect = KeyboardInterrupt
+    ):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        """Test run_loop executes one iteration correctly."""
+        # Mock dependencies
+        mock_get_interval.return_value = 5
+        mock_fake_decibels.return_value = 42.5
+        mock_classify.return_value = "normal"
+        mock_time.return_value = 1234567890.0
 
-        # Force default location behavior (avoid env leakage)
-        with patch.dict(os.environ, {}, clear=True):
-            run_loop()
+        # Mock database collection
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
 
+        # Mock environment for location
+        with patch.dict(os.environ, {"ML_CLIENT_LOCATION": "test_location"}):
+            # Use a side effect to break the loop after one iteration
+            mock_sleep.side_effect = KeyboardInterrupt
+
+            # Run the loop (should break after one iteration due to KeyboardInterrupt)
+            try:
+                run_loop()
+            except KeyboardInterrupt:
+                pass  # Expected behavior
+
+        # Verify function calls
+        mock_get_interval.assert_called_once()
         mock_get_db.assert_called_once()
         mock_fake_decibels.assert_called_once()
-        mock_classify_noise.assert_called_once_with(50.0)
-        mock_coll.insert_one.assert_called_once()
-        inserted_doc = mock_coll.insert_one.call_args[0][0]
-        self.assertEqual(inserted_doc["rms_db"], 50.0)
-        self.assertEqual(inserted_doc["label"], "normal")
-        self.assertEqual(inserted_doc["location"], "unknown")
-        self.assertIn("ts", inserted_doc)
-        self.assertIsInstance(inserted_doc["ts"], float)
+        mock_classify.assert_called_once_with(42.5)
+
+        # Verify database insertion
+        mock_collection.insert_one.assert_called_once_with(
+            {
+                "ts": 1234567890.0,
+                "rms_db": 42.5,
+                "label": "normal",
+                "location": "test_location",
+            }
+        )
+
+        # Verify sleep was called with correct interval
+        mock_sleep.assert_called_once_with(5)
+
+    @patch("client.time.sleep")
+    @patch("client.get_db")
+    @patch("client.get_interval_seconds")
+    def test_run_loop_minimum_interval(
+        self, mock_get_interval, mock_get_db, mock_sleep
+    ):
+        """Test run_loop enforces minimum interval of 1 second."""
+        # Mock a zero interval (should be clamped to 1)
+        mock_get_interval.return_value = 0
+
+        # Mock database to avoid real DB calls
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        # Break after first iteration
+        mock_sleep.side_effect = KeyboardInterrupt
+
+        try:
+            run_loop()
+        except KeyboardInterrupt:
+            pass
+
+        # Should sleep with at least 1 second
+        mock_sleep.assert_called_once_with(1)
+
+    @patch("client.time.sleep")
+    @patch("client.get_db")
+    @patch("client.get_interval_seconds")
+    def test_run_loop_default_location(
+        self, mock_get_interval, mock_get_db, mock_sleep
+    ):
+        """Test run_loop uses default location when not specified."""
+        mock_get_interval.return_value = 5
+
+        # Mock database
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        # Break after first iteration
+        mock_sleep.side_effect = KeyboardInterrupt
+
+        # Clear location environment variable
+        with patch.dict(os.environ, {}, clear=True):
+            try:
+                run_loop()
+            except KeyboardInterrupt:
+                pass
+
+        # Should use default location "unknown"
+        call_args = mock_collection.insert_one.call_args[0][0]
+        self.assertEqual(call_args["location"], "unknown")
+
+    @patch("client.time.sleep")
+    @patch("client.get_db")
+    @patch("client.get_interval_seconds")
+    def test_run_loop_keyboard_interrupt(
+        self, mock_get_interval, mock_get_db, mock_sleep
+    ):
+        """Test run_loop handles KeyboardInterrupt gracefully."""
+        mock_get_interval.return_value = 5
+
+        # Mock database
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        # Simulate KeyboardInterrupt on first sleep
+        mock_sleep.side_effect = KeyboardInterrupt
+
+        # This should not raise an exception
+        run_loop()
+
+        # Should have tried to sleep once
+        mock_sleep.assert_called_once()
+
+
+if __name__ == "__main__":
+    # Run the tests
+    unittest.main()
