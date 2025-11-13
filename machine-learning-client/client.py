@@ -4,6 +4,7 @@ SoundWatch ML client
 
 import os
 import random
+import time
 
 from pymongo import MongoClient
 
@@ -53,7 +54,25 @@ def run_loop():
     to periodically insert readings into the 'measurements' collection.
     """
 
-    raise NotImplementedError("ML client loop not implemented yet.")
+    interval = max(get_interval_seconds(), 1)
+    location = os.getenv("ML_CLIENT_LOCATION", "unknown")
+    coll = get_db()["measurements"]
+
+    while True:
+        try:
+            decibels = fake_decibels()
+            label = classify_noise(decibels)
+            coll.insert_one(
+                {
+                    "ts": time.time(),
+                    "rms_db": decibels,
+                    "label": label,
+                    "location": location,
+                }
+            )
+            time.sleep(interval)
+        except KeyboardInterrupt:
+            break
 
 
 if __name__ == "__main__":
