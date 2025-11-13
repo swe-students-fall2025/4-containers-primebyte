@@ -4,11 +4,11 @@ import os
 import sys
 import unittest
 from unittest.mock import patch, MagicMock
-
-# Ensure project root on path before importing client
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
+
+
+# Add the parent directory to Python path to import client
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class TestDatabaseFunctions(unittest.TestCase):
