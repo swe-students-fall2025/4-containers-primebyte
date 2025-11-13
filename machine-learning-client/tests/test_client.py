@@ -186,10 +186,35 @@ class TestFakeDecibels(unittest.TestCase):
 class TestRunLoop(unittest.TestCase):
     """Test the main run_loop function."""
 
-    def test_run_loop_not_implemented(self):
-        """Test that run_loop raises NotImplementedError."""
-        with self.assertRaises(NotImplementedError):
-            run_loop()
+    @patch("client.get_interval_seconds", return_value=1)
+    @patch("client.time.sleep")
+    @patch("client.fake_decibels", return_value=50.0)
+    @patch("client.classify_noise", return_value="normal")
+    @patch("client.get_db")
+    def test_run_loop_inserts_measurement(
+        self,
+        mock_get_db,
+        mock_classify_noise,
+        mock_fake_decibels,
+        mock_sleep,
+        _mock_interval,
+    ):
+        """Ensure run_loop writes labeled readings and respects sleep."""
+        mock_coll = MagicMock()
+        mock_get_db.return_value = {"measurements": mock_coll}
+        mock_sleep.side_effect = KeyboardInterrupt
+
+        run_loop()
+
+        mock_get_db.assert_called_once()
+        mock_fake_decibels.assert_called_once()
+        mock_classify_noise.assert_called_once_with(50.0)
+        mock_coll.insert_one.assert_called_once()
+        inserted_doc = mock_coll.insert_one.call_args[0][0]
+        self.assertEqual(inserted_doc["rms_db"], 50.0)
+        self.assertEqual(inserted_doc["label"], "normal")
+        self.assertEqual(inserted_doc["location"], "unknown")
+        self.assertIn("ts", inserted_doc)
 
 
 if __name__ == "__main__":
