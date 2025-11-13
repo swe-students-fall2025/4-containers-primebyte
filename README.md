@@ -78,8 +78,12 @@ To auto-format code:
 pipenv run black .
 ```
 
-If you getting pytest issue with "No module named 'pymongo'":
+Run tests:
 ```bash
-deactivate
-pip install pymongo
+pipenv run pytest
+```
+
+Run tests with coverage:
+```bash
+pipenv run pytest --cov
 ```

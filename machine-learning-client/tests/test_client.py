@@ -4,11 +4,11 @@ import os
 import sys
 import unittest
 from unittest.mock import patch, MagicMock
-from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
 
-
-# Add the parent directory to Python path to import client
+# Ensure project root on path before importing client
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
 
 
 class TestDatabaseFunctions(unittest.TestCase):
@@ -204,7 +204,9 @@ class TestRunLoop(unittest.TestCase):
         mock_get_db.return_value = {"measurements": mock_coll}
         mock_sleep.side_effect = KeyboardInterrupt
 
-        run_loop()
+        # Force default location behavior (avoid env leakage)
+        with patch.dict(os.environ, {}, clear=True):
+            run_loop()
 
         mock_get_db.assert_called_once()
         mock_fake_decibels.assert_called_once()
@@ -215,8 +217,4 @@ class TestRunLoop(unittest.TestCase):
         self.assertEqual(inserted_doc["label"], "normal")
         self.assertEqual(inserted_doc["location"], "unknown")
         self.assertIn("ts", inserted_doc)
-
-
-if __name__ == "__main__":
-    # Run the tests
-    unittest.main()
+        self.assertIsInstance(inserted_doc["ts"], float)
