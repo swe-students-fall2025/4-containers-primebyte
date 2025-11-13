@@ -7,9 +7,98 @@
 <div id="history-tab" class="tab-content active">
     <div class="card">
         <h3>Historical Data</h3>
-        <div id="history-table" class="loading">
-            Loading historical data...
+
+        <!-- Container for table, loading state, and errors -->
+        <div id="history-container">
+            <div id="history-loading">Loading historical data...</div>
+
+            <table id="history-table" class="history-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Decibels (dB)</th>
+                        <th>Noise Level</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Table rows will be injected by JavaScript -->
+                </tbody>
+            </table>
+
+            <div id="history-error" class="error" style="display:none;"></div>
         </div>
     </div>
 </div>
+
+<script>
+// Fetch data from /api/history and populate the table
+async function loadHistory() {
+    const loadingEl = document.getElementById("history-loading");
+    const tableEl   = document.getElementById("history-table");
+    const tbodyEl   = tableEl.querySelector("tbody");
+    const errorEl   = document.getElementById("history-error");
+
+    // Set initial states
+    loadingEl.style.display = "block";
+    tableEl.style.display   = "none";
+    errorEl.style.display   = "none";
+    errorEl.textContent     = "";
+
+    try {
+        const resp = await fetch("/api/history?limit=200");
+        if (!resp.ok) {
+            throw new Error("Request failed with status " + resp.status);
+        }
+        const data = await resp.json();
+        const timestamps  = data.timestamps || [];
+        const decibels    = data.decibels || [];
+        const noiseLevels = data.noise_levels || [];
+
+        // Clear old rows
+        tbodyEl.innerHTML = "";
+
+        if (timestamps.length === 0) {
+            loadingEl.textContent = "No data available yet.";
+            return;
+        }
+
+        // Insert new rows into the table
+        for (let i = 0; i < timestamps.length; i++) {
+            const tr = document.createElement("tr");
+
+            const tdTime  = document.createElement("td");
+            const tdDb    = document.createElement("td");
+            const tdLabel = document.createElement("td");
+
+            tdTime.textContent  = timestamps[i];
+            tdDb.textContent    = decibels[i]?.toFixed
+                ? decibels[i].toFixed(1)
+                : decibels[i];
+            tdLabel.textContent = noiseLevels[i] || "unknown";
+
+            tr.appendChild(tdTime);
+            tr.appendChild(tdDb);
+            tr.appendChild(tdLabel);
+            tbodyEl.appendChild(tr);
+        }
+
+        // Show table and hide loading message
+        loadingEl.style.display = "none";
+        tableEl.style.display   = "table";
+    } catch (err) {
+        console.error(err);
+        loadingEl.style.display = "none";
+        errorEl.style.display   = "block";
+        errorEl.textContent     = "Failed to load history data: " + err.message;
+    }
+}
+
+// Load history data once the page is ready
+document.addEventListener("DOMContentLoaded", () => {
+    // Only load when this page is actually visible
+    if (document.getElementById("history-tab")) {
+        loadHistory();
+    }
+});
+</script>
 {% endblock %}

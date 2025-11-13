@@ -46,4 +46,84 @@
         </div>
     </div>
 </div>
+
+<!-- JS to load real data -->
+<script>
+// Fetch the most recent noise measurement
+async function loadCurrentNoise() {
+    try {
+        const resp = await fetch("/api/current");
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        document.getElementById("current-noise-level").textContent = data.noise_level;
+        document.getElementById("current-decibels").textContent = data.decibels.toFixed(1) + " dB";
+        document.getElementById("last-updated").textContent = "Last updated: " + data.timestamp;
+    } catch (err) {
+        console.error("Failed to load current noise:", err);
+    }
+}
+
+// Fetch last-hour statistics
+async function loadStats() {
+    try {
+        const resp = await fetch("/api/stats?minutes=60");
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        document.getElementById("avg-db").textContent = data.average_db.toFixed(1);
+        document.getElementById("noise-level").textContent = Object.keys(data.levels).join(", ");
+        document.getElementById("min-db").textContent = data.min_db.toFixed(1);
+        document.getElementById("max-db").textContent = data.max_db.toFixed(1);
+    } catch (err) {
+        console.error("Failed to load stats:", err);
+    }
+}
+
+// Fetch history chart data and render Chart.js line plot
+async function loadHistoryChart() {
+    try {
+        const resp = await fetch("/api/history?limit=200");
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        const timestamps = data.timestamps || [];
+        const decibels = data.decibels || [];
+
+        const ctx = document.getElementById("noiseHistoryChart").getContext("2d");
+
+        new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: timestamps,
+                datasets: [
+                    {
+                        label: "Decibels (dB)",
+                        data: decibels,
+                        borderColor: "rgb(75, 192, 192)",
+                        fill: false,
+                        tension: 0.1,
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: "Time" }},
+                    y: { title: { display: true, text: "dB" }}
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Failed to load history chart:", err);
+    }
+}
+
+// Load all dashboard data on page load
+document.addEventListener("DOMContentLoaded", () => {
+    loadCurrentNoise();
+    loadStats();
+    loadHistoryChart();
+});
+</script>
+
 {% endblock %}
