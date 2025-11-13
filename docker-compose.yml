@@ -19,5 +19,14 @@ services:
     ports:
       - "5000:5000"
 
+  ml-client:
+    build: ./machine-learning-client
+    container_name: soundwatch-ml-client
+    depends_on:
+      - mongodb
+    env_file:
+      - .env
+
+
 volumes:
   mongo-data:
