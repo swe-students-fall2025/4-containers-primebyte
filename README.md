@@ -15,7 +15,6 @@ The browser microphone captures raw audio decibel readings and stores them unlab
 **Architecture:**
 - **Web App**: Captures microphone input then stores raw decibels in MongoDB (label=None)
 - **ML Client**: Reads unlabeled data then classifies using thresholds/ML then updates labels
-- **Dashboard**: Displays classified data with real-time charts and statistics
 
 ## Team
 
@@ -42,7 +41,7 @@ docker-compose up --build
 - http://localhost:5000/ (should go to the dashboard)
 
 
-## Web App Routes
+## Web App Routes (should be deleted later, not required, this is just to get an idea of what we're doing)
 
 - `/` — renders the dashboard UI.
 - `/health` — lightweight health probe with status metadata.
