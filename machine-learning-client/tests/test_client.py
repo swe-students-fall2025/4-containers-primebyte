@@ -87,41 +87,41 @@ class TestNoiseClassification(unittest.TestCase):
 
     def test_classify_noise_silent(self):
         """Test classification for silent noise levels."""
-        self.assertEqual(classify_noise(20.0), "silent")
-        self.assertEqual(classify_noise(34.9), "silent")
-        self.assertEqual(classify_noise(30.0), "silent")
+        self.assertEqual(classify_noise(0.0), "silent")
+        self.assertEqual(classify_noise(5.0), "silent")
+        self.assertEqual(classify_noise(23.9), "silent")
 
     def test_classify_noise_quiet(self):
         """Test classification for quiet noise levels."""
-        self.assertEqual(classify_noise(35.0), "quiet")
-        self.assertEqual(classify_noise(40.0), "quiet")
-        self.assertEqual(classify_noise(44.9), "quiet")
+        self.assertEqual(classify_noise(24.0), "quiet")
+        self.assertEqual(classify_noise(28.0), "quiet")
+        self.assertEqual(classify_noise(32.9), "quiet")
 
     def test_classify_noise_normal(self):
         """Test classification for normal noise levels."""
-        self.assertEqual(classify_noise(45.0), "normal")
-        self.assertEqual(classify_noise(50.0), "normal")
-        self.assertEqual(classify_noise(54.9), "normal")
+        self.assertEqual(classify_noise(33.0), "normal")
+        self.assertEqual(classify_noise(40.0), "normal")
+        self.assertEqual(classify_noise(49.9), "normal")
 
     def test_classify_noise_loud(self):
         """Test classification for loud noise levels."""
-        self.assertEqual(classify_noise(55.0), "loud")
+        self.assertEqual(classify_noise(50.0), "loud")
         self.assertEqual(classify_noise(60.0), "loud")
-        self.assertEqual(classify_noise(69.9), "loud")
+        self.assertEqual(classify_noise(64.9), "loud")
 
     def test_classify_noise_very_loud(self):
         """Test classification for very loud noise levels."""
-        self.assertEqual(classify_noise(70.0), "very_loud")
+        self.assertEqual(classify_noise(65.0), "very_loud")
         self.assertEqual(classify_noise(80.0), "very_loud")
         self.assertEqual(classify_noise(100.0), "very_loud")
 
     def test_classify_noise_boundary_values(self):
         """Test classification with boundary values."""
         # Test exact boundary values
-        self.assertEqual(classify_noise(35.0), "quiet")
-        self.assertEqual(classify_noise(45.0), "normal")
-        self.assertEqual(classify_noise(55.0), "loud")
-        self.assertEqual(classify_noise(70.0), "very_loud")
+        self.assertEqual(classify_noise(24.0), "quiet")
+        self.assertEqual(classify_noise(33.0), "normal")
+        self.assertEqual(classify_noise(50.0), "loud")
+        self.assertEqual(classify_noise(65.0), "very_loud")
 
     def test_classify_noise_negative(self):
         """Test classification with negative decibel values."""

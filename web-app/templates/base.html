@@ -15,6 +15,26 @@
             <p>Real-time audio level monitoring and analysis</p>
         </div>
         
+        <!-- Control Panel -->
+        <div style="background: rgba(255, 255, 255, 0.95); padding: 20px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
+            <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">Microphone Controls</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <button id="start-mic" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">Start</button>
+                        <button id="stop-mic" disabled style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">Stop</button>
+                    </div>
+                    <div id="mic-status" style="font-size: 13px; color: #666;">Microphone inactive</div>
+                    <div id="realtime-db" style="font-size: 20px; font-weight: bold; color: #333; margin-top: 5px;">-- dB</div>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <h3 style="margin: 0 0 10px 0; color: #333;">Data Management</h3>
+                    <button id="purge-btn" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; margin-bottom: 10px;">Purge All Data</button>
+                    <div id="purge-status" style="font-size: 13px; color: #666;"></div>
+                </div>
+            </div>
+        </div>
+        
         <div class="nav-tabs">
             <a href="{{ url_for('dashboard') }}" class="nav-tab {% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
             <a href="{{ url_for('realtime_monitor') }}" class="nav-tab {% if request.endpoint == 'realtime_monitor' %}active{% endif %}">Real-time</a>
@@ -25,5 +45,6 @@
     </div>
     
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/microphone.js') }}"></script>
 </body>
 </html>

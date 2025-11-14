@@ -27,6 +27,11 @@ def get_interval_seconds() -> int:
         return 5
 
 
+def use_fake_data() -> bool:
+    """Check if we should use fake data or real microphone input."""
+    return os.getenv("USE_FAKE_DATA", "true").lower() in ("true", "1", "yes")
+
+
 def fake_decibels() -> float:
     """Generate a fake decibel reading for testing."""
     base = random.uniform(30, 45)
@@ -36,28 +41,91 @@ def fake_decibels() -> float:
     return round(base, 1)
 
 
-def classify_noise(decibels: float) -> str:
-    """Simple rule-based noise label (will be replaced with ML later)."""
-    if decibels < 35:
+def classify_noise_ml(decibels: float) -> str:
+    """ML-based classification using k-means clustering.
+
+    TODO: Implement k-means clustering for noise classification.
+    This will replace the hardcoded thresholds when real data is available.
+    """
+    # Placeholder - will implement k-means clustering
+    return classify_noise_hardcoded(decibels)
+
+
+def classify_noise_hardcoded(decibels: float) -> str:
+    """Simple rule-based noise label.
+
+    Thresholds updated for real microphone input:
+    0-24: silent (muted/background)
+    24-33: quiet
+    33-50: normal
+    50-65: loud
+    65+: very_loud
+    """
+    if decibels < 24:
         return "silent"
-    if decibels < 45:
+    if decibels < 33:
         return "quiet"
-    if decibels < 55:
+    if decibels < 50:
         return "normal"
-    if decibels < 70:
+    if decibels < 65:
         return "loud"
     return "very_loud"
 
 
+def classify_noise(decibels: float) -> str:
+    """Classify noise level based on data mode."""
+    if use_fake_data():
+        return classify_noise_hardcoded(decibels)
+    return classify_noise_ml(decibels)
+
+
 def run_loop():
-    """Main loop will use the functions above
-    to periodically insert readings into the 'measurements' collection.
+    """Main loop that classifies noise data.
+
+    In FAKE mode: Generates fake data and classifies it.
+    In REAL mode: Reads unlabeled data from web app and adds classifications.
     """
 
     interval = max(get_interval_seconds(), 1)
+    # Default location must align with unit tests expecting 'unknown'
     location = os.getenv("ML_CLIENT_LOCATION", "unknown")
     coll = get_db()["measurements"]
+    fake_mode = use_fake_data()
 
+    print(
+        f"Starting ML client in {'FAKE' if fake_mode else 'REAL'} data mode...",
+        flush=True,
+    )
+
+    if not fake_mode:
+        print(
+            "Real mode: ML client will classify unlabeled data from web app.",
+            flush=True,
+        )
+        # In real mode, process unlabeled measurements from web app
+        while True:
+            try:
+                # Find measurements without labels (from web app microphone)
+                unlabeled = coll.find({"label": None}).limit(100)
+
+                count = 0
+                for doc in unlabeled:
+                    decibels = doc.get("rms_db", 0)
+                    label = classify_noise(decibels)
+
+                    # Update document with classification
+                    coll.update_one({"_id": doc["_id"]}, {"$set": {"label": label}})
+                    count += 1
+
+                if count > 0:
+                    print(f"Classified {count} unlabeled measurements", flush=True)
+
+                time.sleep(interval)  # Check for new data periodically
+            except KeyboardInterrupt:
+                break
+        return
+
+    # Fake mode: generate and insert fake data with labels
     while True:
         try:
             decibels = fake_decibels()
