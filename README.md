@@ -40,7 +40,6 @@ docker-compose up --build
 3. Open in browser:
 
 - http://localhost:5000/ (should go to the dashboard)
-- http://localhost:5000/health (should check health)
 
 
 ## Web App Routes
@@ -57,10 +56,10 @@ docker-compose up --build
 ## Architecture
 
 ### Data Flow
-1. **Browser → Web App**: Microphone captures audio at interval set by `ML_CLIENT_INTERVAL_SECONDS`, sends raw dB to `/api/audio_data`
-2. **Web App → MongoDB**: Stores measurements with `label: None`
-3. **ML Client → MongoDB**: Polls for unlabeled data every `ML_CLIENT_INTERVAL_SECONDS`, classifies, updates labels
-4. **Dashboard → MongoDB**: Displays classified data via `/api/current`, `/api/stats`, `/api/history`
+1. **Browser to Web App**: Microphone captures audio at interval set by `ML_CLIENT_INTERVAL_SECONDS`, sends raw dB to `/api/audio_data`
+2. **Web App to MongoDB**: Stores measurements with `label: None`
+3. **ML Client to MongoDB**: Polls for unlabeled data every `ML_CLIENT_INTERVAL_SECONDS`, classifies, updates labels
+4. **Dashboard to MongoDB**: Displays classified data via `/api/current`, `/api/stats`, `/api/history`
 
 ### Modes
 - **Fake Data Mode** (`USE_FAKE_DATA=true`): ML client generates synthetic data with labels
@@ -78,7 +77,7 @@ Capture real audio from your browser microphone:
 - Audio data is sent to the server at the interval configured in `ML_CLIENT_INTERVAL_SECONDS`
 - Click "Stop Microphone" to end capture
 
-**Noise Level Thresholds (device-calibrated):**
+**Noise Level Thresholds (device-calibrated) should be changed if mismatch on different users:**
 - <24 dB: Silent (muted/background)
 - 24–33 dB: Quiet
 - 33–50 dB: Normal
