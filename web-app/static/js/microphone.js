@@ -11,6 +11,17 @@
     let lastUpdateTime = 0; // Throttle display updates
     let intervalMs = 5000; // Default 5 seconds, fetched on page load
 
+    // recover microphone state from localStorage
+    function loadMicrophoneState() {
+        const savedState = localStorage.getItem('microphoneState');
+        return savedState === 'recording';
+    }
+
+    // save to localStorage
+    function saveMicrophoneState(state) {
+        localStorage.setItem('microphoneState', state ? 'recording' : 'stopped');
+    }
+
     function computeDecibels() {
         if (!analyser || !dataArray) return 0;
         analyser.getByteTimeDomainData(dataArray);
@@ -99,18 +110,10 @@
             source.connect(analyser);
 
             isRecording = true;
+            saveMicrophoneState(true); // save state
 
-            const startBtn = document.getElementById('start-mic');
-            const stopBtn = document.getElementById('stop-mic');
-            const micStatus = document.getElementById('mic-status');
-            
-            if (startBtn) startBtn.disabled = true;
-            if (stopBtn) stopBtn.disabled = false;
-            if (micStatus) {
-                micStatus.textContent = 'Microphone active - recording...';
-                micStatus.style.color = '#28a745';
-            }
-            
+            updateUIForRecording();
+
             // Start real-time display updates
             updateRealtimeDisplay();
             
@@ -119,16 +122,13 @@
             sendAudioData(); // Send immediately
         } catch (err) {
             console.error('Microphone access failed:', err);
-            const micStatus = document.getElementById('mic-status');
-            if (micStatus) {
-                micStatus.textContent = 'Microphone access denied';
-                micStatus.style.color = '#dc3545';
-            }
+            updateUIForError('Microphone access denied');
         }
     }
 
     function stopMicrophone() {
         isRecording = false;
+        saveMicrophoneState(false); // save state
         smoothedDb = 0; // Reset smoothing
         lastUpdateTime = 0; // Reset throttle
 
@@ -149,6 +149,24 @@
             audioContext = null;
         }
 
+        updateUIForStopped();
+    }
+
+    // update UI for recording state
+    function updateUIForRecording() {
+        const startBtn = document.getElementById('start-mic');
+        const stopBtn = document.getElementById('stop-mic');
+        const micStatus = document.getElementById('mic-status');
+        
+        if (startBtn) startBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
+        if (micStatus) {
+            micStatus.textContent = 'Microphone active - recording...';
+            micStatus.style.color = '#28a745';
+        }
+    }
+
+    function updateUIForStopped() {
         const startBtn = document.getElementById('start-mic');
         const stopBtn = document.getElementById('stop-mic');
         const micStatus = document.getElementById('mic-status');
@@ -163,6 +181,23 @@
         if (dbDisplay) {
             dbDisplay.textContent = '-- dB';
             dbDisplay.style.color = '#333';
+        }
+    }
+
+    function updateUIForError(message) {
+        const micStatus = document.getElementById('mic-status');
+        if (micStatus) {
+            micStatus.textContent = message;
+            micStatus.style.color = '#dc3545';
+        }
+    }
+
+    // auto resume recording if previously active
+    async function autoResumeRecording() {
+        const shouldResume = loadMicrophoneState();
+        if (shouldResume) {
+            console.log('Auto-resuming microphone recording...');
+            await startMicrophone();
         }
     }
 
@@ -216,8 +251,19 @@
             console.error('Failed to fetch config, using default interval:', err);
         }
         
+        // Set up event listeners
         if (startBtn) startBtn.addEventListener('click', startMicrophone);
         if (stopBtn) stopBtn.addEventListener('click', stopMicrophone);
         if (purgeBtn) purgeBtn.addEventListener('click', purgeData);
+
+        // Auto-resume if previously recording
+        await autoResumeRecording();
+    });
+
+    // Save state on page unload
+    window.addEventListener('beforeunload', () => {
+        if (isRecording) {
+            saveMicrophoneState(true);
+        }
     });
 })();
