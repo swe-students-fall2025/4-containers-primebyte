@@ -106,6 +106,15 @@ def health():
         )
 
 
+@app.route("/api/config")
+def get_config():
+    """Return configuration settings for the frontend."""
+    interval_seconds = int(os.getenv("ML_CLIENT_INTERVAL_SECONDS", "5"))
+    return jsonify(
+        {"interval_seconds": interval_seconds, "interval_ms": interval_seconds * 1000}
+    )
+
+
 @app.route("/api/current")
 def current_noise():
     """Return the most recent measurement."""
@@ -217,6 +226,48 @@ def debug_insert_one():
         measurements().insert_one(doc)
         return jsonify({"ok": True, "inserted": doc})
     except PyMongoError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.route("/api/purge", methods=["POST"])
+def purge_data():
+    """Purge all measurement data from the database."""
+    try:
+        result = measurements().delete_many({})
+        return jsonify(
+            {
+                "ok": True,
+                "deleted_count": result.deleted_count,
+                "message": f"Successfully deleted {result.deleted_count} measurements",
+            }
+        )
+    except PyMongoError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@app.route("/api/audio_data", methods=["POST"])
+def receive_audio_data():
+    """Receive raw audio data from browser microphone.
+
+    Stores unlabeled decibel readings. ML client will classify them later.
+    """
+    try:
+        data = request.get_json()
+        decibels = float(data.get("decibels", 0))
+
+        # Store raw data WITHOUT classification - ML client will add labels
+        measurements().insert_one(
+            {
+                "ts": time.time(),
+                "rms_db": decibels,
+                "label": None,  # Will be classified by ML client never classify here
+                "location": "web-microphone",
+                "source": "real",
+            }
+        )
+
+        return jsonify({"ok": True})
+    except (ValueError, PyMongoError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
