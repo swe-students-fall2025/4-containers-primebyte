@@ -84,7 +84,10 @@ function updateStatistics() {
         });
 }
 
-// Initialize noise history chart using /api/history
+// Global variable to store chart instance
+let noiseHistoryChart = null;
+
+// Initialize noise history chart using /api/history with auto-refresh
 function initializeCharts() {
     const canvas = document.getElementById('noiseHistoryChart');
     if (!canvas || typeof Chart === 'undefined') {
@@ -92,62 +95,80 @@ function initializeCharts() {
         return;
     }
 
-    fetch('/api/history?limit=200')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to fetch /api/history: ' + response.status);
-            }
-            return response.json();
-        })
-        .then(data => {
-            const timestamps = data.timestamps || [];
-            const decibels = data.decibels || [];
-
-            if (timestamps.length === 0 || decibels.length === 0) {
-                console.log('No history data available yet for chart');
-                return;
-            }
-
-            const ctx = canvas.getContext('2d');
-
-            // Create line chart
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: timestamps,
-                    datasets: [
-                        {
-                            label: 'Decibels (dB)',
-                            data: decibels,
-                            borderColor: 'rgb(75, 192, 192)',
-                            fill: false,
-                            tension: 0.1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Time'
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'dB'
-                            }
-                        }
-                    }
+    // Function to update chart data
+    function updateChartData() {
+        fetch('/api/history?limit=100')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch /api/history: ' + response.status);
                 }
+                return response.json();
+            })
+            .then(data => {
+                const timestamps = data.timestamps || [];
+                const decibels = data.decibels || [];
+
+                if (timestamps.length === 0 || decibels.length === 0) {
+                    console.log('No history data available yet for chart');
+                    return;
+                }
+
+                if (noiseHistoryChart) {
+                    // Update existing chart
+                    noiseHistoryChart.data.labels = timestamps;
+                    noiseHistoryChart.data.datasets[0].data = decibels;
+                    noiseHistoryChart.update('none'); // Silent update without animations
+                } else {
+                    // Create new chart
+                    const ctx = canvas.getContext('2d');
+                    noiseHistoryChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: timestamps,
+                            datasets: [
+                                {
+                                    label: 'Decibels (dB)',
+                                    data: decibels,
+                                    borderColor: 'rgb(75, 192, 192)',
+                                    fill: false,
+                                    tension: 0.1
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'Time'
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: 'dB'
+                                    }
+                                }
+                            },
+                            animation: {
+                                duration: 0 // Disable animations for smoother updates
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error updating charts:', error);
             });
-        })
-        .catch(error => {
-            console.error('Error initializing charts:', error);
-        });
+    }
+
+    // Initial load
+    updateChartData();
+
+    // Set up auto-refresh every 5 seconds
+    setInterval(updateChartData, 5000);
 }
 
 // Start periodic updates if on dashboard page
@@ -160,4 +181,29 @@ if (document.getElementById('current-noise-level')) {
     updateCurrentStatus();
     updateStatistics();
     initializeCharts();
+}
+
+// Auto-refresh for history page
+if (document.getElementById("history-table")) {
+    let historyRefreshInterval = null;
+    
+    function startHistoryAutoRefresh() {
+        // Refresh history every 10 seconds
+        historyRefreshInterval = setInterval(loadHistory, 10000);
+        console.log('History auto-refresh started');
+    }
+    
+    function stopHistoryAutoRefresh() {
+        if (historyRefreshInterval) {
+            clearInterval(historyRefreshInterval);
+            historyRefreshInterval = null;
+            console.log('History auto-refresh stopped');
+        }
+    }
+    
+    // Start auto-refresh when history page loads
+    startHistoryAutoRefresh();
+    
+    // Clean up when leaving the page
+    window.addEventListener('beforeunload', stopHistoryAutoRefresh);
 }
