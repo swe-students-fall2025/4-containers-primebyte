@@ -9,7 +9,7 @@
     let sendIntervalId; // Store interval ID for cleanup
     let smoothedDb = 0; // For exponential smoothing
     let lastUpdateTime = 0; // Throttle display updates
-    let intervalMs = 5000; // Default 5 seconds, fetched on page load
+    let intervalMs = 1000; // Default 1 second, fetched on page load
 
     // recover microphone state from localStorage
     function loadMicrophoneState() {
@@ -39,9 +39,13 @@
         // Map to realistic SPL range: -60 to -10 dbfs -> 0 to 100 dB SPL
         const rawDb = Math.max(0, Math.min(100, 70 + dbfs));
         
-        // Strong exponential smoothing to prevent violent jumps
-        // Alpha = 0.15 means only 15% new value, 85% old value (much smoother)
-        smoothedDb = (0.15 * rawDb) + (0.85 * smoothedDb);
+        // Alpha = 0.3 means 30% new value, 70% old value
+        // Seed the smoother on first value to avoid slow ramp from 0
+        if (smoothedDb === 0) {
+            smoothedDb = rawDb;
+        } else {
+            smoothedDb = (0.3 * rawDb) + (0.7 * smoothedDb);
+        }
         
         return Number(smoothedDb.toFixed(1));
     }
@@ -49,20 +53,20 @@
     function updateRealtimeDisplay() {
         if (!isRecording) return;
 
-        const db = computeDecibels();
-        
-        // Throttle display updates to every 100ms (10 times per second)
+        // Throttle display updates to every 75ms (13.33 times per second)
         const now = Date.now();
-        if (now - lastUpdateTime < 100) {
+        if (now - lastUpdateTime < 75) {
             animationId = requestAnimationFrame(updateRealtimeDisplay);
             return;
         }
         lastUpdateTime = now;
+
+        const db = computeDecibels(); // Smoothing runs only every 75ms
         
         const dbDisplay = document.getElementById('realtime-db');
         
         if (dbDisplay) {
-            dbDisplay.textContent = db.toFixed(1) + ' dB';
+            dbDisplay.textContent = Math.round(db) + ' dB';
             
             // Color code based on updated thresholds
             if (db < 24) dbDisplay.style.color = '#6c757d'; // gray - silent
@@ -78,7 +82,8 @@
     async function sendAudioData() {
         if (!isRecording) return;
         
-        const db = computeDecibels();
+        // Use the latest smoothed value; fall back to a fresh compute if needed
+        const db = smoothedDb || computeDecibels();
         
         try {
             await fetch('/api/audio_data', {
