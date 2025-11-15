@@ -62,8 +62,8 @@ async function loadHistory() {
             return;
         }
 
-        // Insert new rows into the table
-        for (let i = 0; i < timestamps.length; i++) {
+        // Insert new rows into the table in reverse order
+        for (let i = timestamps.length - 1; i >= 0; i--) {
             const tr = document.createElement("tr");
 
             const tdTime  = document.createElement("td");
@@ -90,6 +90,20 @@ async function loadHistory() {
         loadingEl.style.display = "none";
         errorEl.style.display   = "block";
         errorEl.textContent     = "Failed to load history data: " + err.message;
+    }
+}
+
+// Start auto-refresh
+function startAutoRefresh() {
+    // Refresh every 10 seconds
+    autoRefreshInterval = setInterval(loadHistory, 10000);
+}
+
+// Stop auto-refresh
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
     }
 }
 
