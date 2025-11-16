@@ -37,7 +37,6 @@
         
         <div class="nav-tabs">
             <a href="{{ url_for('dashboard') }}" class="nav-tab {% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
-            <a href="{{ url_for('realtime_monitor') }}" class="nav-tab {% if request.endpoint == 'realtime_monitor' %}active{% endif %}">Real-time</a>
             <a href="{{ url_for('history') }}" class="nav-tab {% if request.endpoint == 'history' %}active{% endif %}">History</a>
         </div>
         
