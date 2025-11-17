@@ -4,7 +4,15 @@ import os
 import sys
 import unittest
 from unittest.mock import patch, MagicMock
-from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
+from client import (
+    get_db,
+    get_interval_seconds,
+    fake_decibels,
+    classify_noise,
+    classify_noise_ml,
+    use_fake_data,
+    run_loop,
+)
 
 
 # Add the parent directory to Python path to import client
@@ -190,6 +198,40 @@ class TestFakeDecibels(unittest.TestCase):
             self.assertEqual(result, 37.1)
 
 
+class TestConfigurationFlags(unittest.TestCase):
+    """Verify helpers that depend on environment configuration."""
+
+    def test_use_fake_data_truthy_values(self):
+        """Truthy env values should enable fake data."""
+        for val in ("true", "TRUE", "1", "Yes"):
+            with self.subTest(val=val):
+                with patch.dict(os.environ, {"USE_FAKE_DATA": val}):
+                    self.assertTrue(use_fake_data())
+
+    def test_use_fake_data_false_values(self):
+        """Falsey env values should disable fake data."""
+        for val in ("false", "0", "no"):
+            with self.subTest(val=val):
+                with patch.dict(os.environ, {"USE_FAKE_DATA": val}):
+                    self.assertFalse(use_fake_data())
+
+    def test_classify_noise_ml_delegates_to_hardcoded(self):
+        """Placeholder ML classifier should call hardcoded logic."""
+        with patch("client.classify_noise_hardcoded", return_value="normal") as mock_fn:
+            result = classify_noise_ml(42.0)
+        self.assertEqual(result, "normal")
+        mock_fn.assert_called_once_with(42.0)
+
+    def test_classify_noise_calls_ml_when_real_mode(self):
+        """classify_noise should call ML classifier when fake mode disabled."""
+        with patch("client.use_fake_data", return_value=False), patch(
+            "client.classify_noise_ml", return_value="ml-label"
+        ) as mock_ml:
+            result = classify_noise(55.0)
+        self.assertEqual(result, "ml-label")
+        mock_ml.assert_called_once_with(55.0)
+
+
 class TestRunLoop(unittest.TestCase):
     """Test the main run_loop function."""
 
@@ -318,6 +360,48 @@ class TestRunLoop(unittest.TestCase):
 
         # Should have tried to sleep once
         mock_sleep.assert_called_once()
+
+    @patch("client.use_fake_data", return_value=False)
+    @patch("client.classify_noise", return_value="quiet")
+    @patch("client.time.sleep")
+    @patch("client.get_db")
+    @patch("client.get_interval_seconds")
+    def test_run_loop_real_mode_updates_unlabeled(
+        self,
+        mock_get_interval,
+        mock_get_db,
+        mock_sleep,
+        mock_classify,
+        mock_use_fake,
+    ):
+        """Real mode should update unlabeled measurements then sleep."""
+        mock_get_interval.return_value = 3
+
+        mock_collection = MagicMock()
+
+        class FakeCursor:
+            def __init__(self, docs):
+                self._docs = docs
+
+            def limit(self, *_args, **_kwargs):
+                return self._docs
+
+        mock_collection.find.return_value = FakeCursor(
+            [{"_id": "abc", "rms_db": 30.0}]
+        )
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        mock_sleep.side_effect = KeyboardInterrupt
+
+        run_loop()
+
+        mock_use_fake.assert_called_once()
+        mock_collection.update_one.assert_called_once_with(
+            {"_id": "abc"}, {"$set": {"label": "quiet"}}
+        )
+        mock_sleep.assert_called_once_with(3)
 
 
 if __name__ == "__main__":

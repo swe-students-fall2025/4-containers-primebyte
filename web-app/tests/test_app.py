@@ -4,8 +4,11 @@ import importlib
 import json
 import os
 import sys
+import time
 from types import SimpleNamespace
 from unittest import mock, TestCase
+
+from pymongo.errors import PyMongoError
 
 
 def _get_flask_app():
@@ -41,8 +44,13 @@ class WebAppTests(TestCase):
 
         start_patch("app.measurements", new=lambda: dummy_coll)
         start_patch("app.ensure_indexes", new=lambda: None)
+        start_patch("app.render_template", new=lambda *_args, **_kwargs: "<html />")
 
         self.client = APP.test_client()
+
+    def patch_measurements(self, replacement):
+        """Convenience helper to override measurements() within a context."""
+        return mock.patch("app.measurements", return_value=replacement)
 
     def tearDown(self):
         """Stop all applied patches."""
@@ -105,3 +113,244 @@ class WebAppTests(TestCase):
         self.assertEqual(response.get_json(), {"ok": True})
         self.assertEqual(inserted["rms_db"], 42.5)
         self.assertIsNone(inserted["label"])
+
+    def test_realtime_route_renders_template(self):
+        """Realtime route should be accessible."""
+        response = self.client.get("/realtime")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers["Content-Type"])
+
+    def test_history_route_renders_template(self):
+        """History route should be accessible."""
+        response = self.client.get("/history")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers["Content-Type"])
+
+    def test_health_reports_count(self):
+        """Health endpoint should report database counts when healthy."""
+        class HealthCollection:
+            def estimated_document_count(self):
+                return 7
+
+        with mock.patch("app.measurements", return_value=HealthCollection()):
+            response = self.client.get("/health")
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["status"], "healthy")
+        self.assertTrue(payload["db_ok"])
+        self.assertEqual(payload["count"], 7)
+
+    def test_health_handles_db_failure(self):
+        """Health endpoint should surface degraded status when DB fails."""
+        with mock.patch("app.ensure_indexes", side_effect=PyMongoError("fail")), mock.patch(
+            "app.measurements"
+        ):
+            response = self.client.get("/health")
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(payload["db_ok"])
+        self.assertEqual(payload["status"], "degraded")
+        self.assertIn("fail", payload["error"])
+
+    def test_current_noise_returns_latest_measurement(self):
+        """Current endpoint should format the newest measurement."""
+
+        class CurrentCollection:
+            def find_one(self, **_kwargs):
+                return {"ts": 1_700_000_000, "rms_db": 55.5, "label": "loud"}
+
+        with mock.patch("app.measurements", return_value=CurrentCollection()):
+            response = self.client.get("/api/current")
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["noise_level"], "loud")
+        self.assertEqual(payload["decibels"], 55.5)
+        self.assertTrue(payload["timestamp"].endswith("+00:00"))
+
+    def test_current_noise_handles_missing_data(self):
+        """Current endpoint should return 404 when no data exists."""
+
+        class EmptyCollection:
+            def find_one(self, **_kwargs):  # pragma: no cover - trivial
+                return None
+
+        with mock.patch("app.measurements", return_value=EmptyCollection()):
+            response = self.client.get("/api/current")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.get_json(), {"message": "no data yet"})
+
+    def test_noise_stats_returns_data(self):
+        """Stats endpoint aggregates averages and label counts."""
+
+        class StatsCollection:
+            def aggregate(self, pipeline):
+                group_stage = pipeline[-1].get("$group", {})
+                if group_stage.get("_id") is None:
+                    return [
+                        {
+                            "avg_db": 40,
+                            "max_db": 60,
+                            "min_db": 20,
+                            "count": 3,
+                        }
+                    ]
+                return [{"_id": "normal", "n": 2}, {"_id": None, "n": 1}]
+
+        with mock.patch("app.measurements", return_value=StatsCollection()):
+            response = self.client.get("/api/stats?minutes=15")
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["average_db"], 40.0)
+        self.assertEqual(payload["max_db"], 60.0)
+        self.assertEqual(payload["data_count"], 3)
+        self.assertEqual(payload["levels"]["normal"], 2)
+        self.assertEqual(payload["levels"]["unknown"], 1)
+
+    def test_noise_history_returns_series(self):
+        """History endpoint should return parallel arrays for charting."""
+
+        class HistoryCursor:
+            def __init__(self, docs):
+                self._docs = docs
+
+            def sort(self, *_args, **_kwargs):
+                return self
+
+            def limit(self, *_args, **_kwargs):
+                return self._docs
+
+        class HistoryCollection:
+            def find(self, _query):
+                base = time.time()
+                docs = [
+                    {"ts": base + 1, "rms_db": 70.0, "label": "very_loud"},
+                    {"ts": base, "rms_db": 30.0, "label": "quiet"},
+                ]
+                return HistoryCursor(docs)
+
+        with mock.patch("app.measurements", return_value=HistoryCollection()):
+            response = self.client.get("/api/history?limit=2")
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(payload["timestamps"]), 2)
+        self.assertEqual(payload["noise_levels"][0], "quiet")
+        self.assertEqual(payload["noise_levels"][1], "very_loud")
+
+    def test_purge_data_returns_deleted_count(self):
+        """Purge endpoint should delete documents and report counts."""
+
+        class PurgeCollection:
+            def delete_many(self, _query):
+                return SimpleNamespace(deleted_count=5)
+
+        with mock.patch("app.measurements", return_value=PurgeCollection()):
+            response = self.client.post("/api/purge")
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["deleted_count"], 5)
+
+    def test_purge_data_handles_error(self):
+        """Purge endpoint should surface DB errors."""
+
+        class BrokenCollection:
+            def delete_many(self, _query):
+                raise PyMongoError("boom")
+
+        with self.patch_measurements(BrokenCollection()):
+            response = self.client.post("/api/purge")
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 500)
+        self.assertFalse(payload["ok"])
+        self.assertIn("boom", payload["error"])
+
+    def test_receive_audio_data_invalid_payload(self):
+        """Audio endpoint should reject invalid decibels."""
+        response = self.client.post(
+            "/api/audio_data", data=json.dumps({"decibels": "bad"}), content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 500)
+        self.assertFalse(response.get_json()["ok"])
+
+    def test_receive_audio_data_handles_db_error(self):
+        """Audio endpoint should handle DB failures gracefully."""
+
+        class BrokenCollection:
+            def insert_one(self, _payload):
+                raise PyMongoError("nope")
+
+            def delete_many(self, *_args, **_kwargs):  # pragma: no cover
+                return SimpleNamespace(deleted_count=0)
+
+        with self.patch_measurements(BrokenCollection()):
+            response = self.client.post(
+                "/api/audio_data",
+                data=json.dumps({"decibels": 10}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertFalse(response.get_json()["ok"])
+
+    def test_stats_handles_db_error(self):
+        """Stats endpoint should catch DB errors."""
+
+        class BrokenCollection:
+            def aggregate(self, *_args, **_kwargs):
+                raise PyMongoError("agg fail")
+
+        with self.patch_measurements(BrokenCollection()):
+            response = self.client.get("/api/stats")
+
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("agg fail", response.get_json()["error"])
+
+    def test_history_handles_db_error(self):
+        """History endpoint should catch DB errors."""
+
+        class BrokenCollection:
+            def find(self, *_args, **_kwargs):
+                raise PyMongoError("find fail")
+
+        with self.patch_measurements(BrokenCollection()):
+            response = self.client.get("/api/history?limit=5")
+
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("find fail", response.get_json()["error"])
+
+    def test_debug_insert_success(self):
+        """Debug insert endpoint should respond with inserted doc."""
+
+        class DebugCollection:
+            def insert_one(self, doc):
+                self.doc = doc  # pylint: disable=attribute-defined-outside-init
+
+        coll = DebugCollection()
+        with self.patch_measurements(coll):
+            response = self.client.post("/api/debug/insert_one")
+
+        payload = response.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["inserted"]["label"], "normal")
+
+    def test_debug_insert_handles_failure(self):
+        """Debug insert endpoint should surface DB errors."""
+
+        class BrokenCollection:
+            def insert_one(self, _doc):
+                raise PyMongoError("debug fail")
+
+        with self.patch_measurements(BrokenCollection()):
+            response = self.client.post("/api/debug/insert_one")
+
+        payload = response.get_json()
+        self.assertFalse(payload["ok"])
+        self.assertIn("debug fail", payload["error"])
