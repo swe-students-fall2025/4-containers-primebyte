@@ -361,29 +361,18 @@ class TestRunLoop(unittest.TestCase):
         # Should have tried to sleep once
         mock_sleep.assert_called_once()
 
-    @patch("client.use_fake_data", return_value=False)
-    @patch("client.classify_noise", return_value="quiet")
-    @patch("client.time.sleep")
-    @patch("client.get_db")
-    @patch("client.get_interval_seconds")
-    def test_run_loop_real_mode_updates_unlabeled(
-        self,
-        mock_get_interval,
-        mock_get_db,
-        mock_sleep,
-        mock_classify,
-        mock_use_fake,
-    ):
+    def test_run_loop_real_mode_updates_unlabeled(self):
         """Real mode should update unlabeled measurements then sleep."""
-        mock_get_interval.return_value = 3
-
         mock_collection = MagicMock()
 
-        class FakeCursor:
+        class FakeCursor:  # pylint: disable=too-few-public-methods
+            """A minimal cursor stub that returns canned docs."""
+
             def __init__(self, docs):
                 self._docs = docs
 
             def limit(self, *_args, **_kwargs):
+                """Return the stored docs regardless of limit."""
                 return self._docs
 
         mock_collection.find.return_value = FakeCursor(
@@ -391,13 +380,19 @@ class TestRunLoop(unittest.TestCase):
         )
         mock_db = MagicMock()
         mock_db.__getitem__.return_value = mock_collection
-        mock_get_db.return_value = mock_db
 
-        mock_sleep.side_effect = KeyboardInterrupt
-
-        run_loop()
+        with patch("client.get_interval_seconds", return_value=3), patch(
+            "client.get_db", return_value=mock_db
+        ), patch("client.time.sleep") as mock_sleep, patch(
+            "client.classify_noise", return_value="quiet"
+        ) as mock_classify, patch(
+            "client.use_fake_data", return_value=False
+        ) as mock_use_fake:
+            mock_sleep.side_effect = KeyboardInterrupt
+            run_loop()
 
         mock_use_fake.assert_called_once()
+        mock_classify.assert_called_once_with(30.0)
         mock_collection.update_one.assert_called_once_with(
             {"_id": "abc"}, {"$set": {"label": "quiet"}}
         )

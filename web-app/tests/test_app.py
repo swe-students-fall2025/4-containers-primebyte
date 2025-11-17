@@ -1,5 +1,7 @@
 """Simple tests for the SoundWatch Flask web application."""
 
+# pylint: disable=too-few-public-methods
+
 import importlib
 import json
 import os
@@ -24,7 +26,7 @@ def _get_flask_app():
 APP = _get_flask_app()
 
 
-class WebAppTests(TestCase):
+class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
     """Basic integration-ish tests for the Flask endpoints."""
 
     def setUp(self):
@@ -129,7 +131,10 @@ class WebAppTests(TestCase):
     def test_health_reports_count(self):
         """Health endpoint should report database counts when healthy."""
         class HealthCollection:
+            """Stub that returns a fixed document count for health checks."""
+
             def estimated_document_count(self):
+                """Report a canned document count."""
                 return 7
 
         with mock.patch("app.measurements", return_value=HealthCollection()):
@@ -158,7 +163,10 @@ class WebAppTests(TestCase):
         """Current endpoint should format the newest measurement."""
 
         class CurrentCollection:
+            """Stub returning a canned measurement document."""
+
             def find_one(self, **_kwargs):
+                """Return a fake latest measurement."""
                 return {"ts": 1_700_000_000, "rms_db": 55.5, "label": "loud"}
 
         with mock.patch("app.measurements", return_value=CurrentCollection()):
@@ -174,7 +182,10 @@ class WebAppTests(TestCase):
         """Current endpoint should return 404 when no data exists."""
 
         class EmptyCollection:
+            """Stub representing an empty measurements collection."""
+
             def find_one(self, **_kwargs):  # pragma: no cover - trivial
+                """Return no document to simulate empty database."""
                 return None
 
         with mock.patch("app.measurements", return_value=EmptyCollection()):
@@ -187,7 +198,10 @@ class WebAppTests(TestCase):
         """Stats endpoint aggregates averages and label counts."""
 
         class StatsCollection:
+            """Stub providing predictable aggregation results."""
+
             def aggregate(self, pipeline):
+                """Return canned average stats or label counts."""
                 group_stage = pipeline[-1].get("$group", {})
                 if group_stage.get("_id") is None:
                     return [
@@ -215,17 +229,24 @@ class WebAppTests(TestCase):
         """History endpoint should return parallel arrays for charting."""
 
         class HistoryCursor:
+            """Minimal cursor that allows chaining sort/limit."""
+
             def __init__(self, docs):
                 self._docs = docs
 
             def sort(self, *_args, **_kwargs):
+                """Flask code expects the cursor back to support chaining."""
                 return self
 
             def limit(self, *_args, **_kwargs):
+                """Return the stored docs to simulate Mongo cursor behavior."""
                 return self._docs
 
         class HistoryCollection:
+            """Stub returning the canned cursor for history queries."""
+
             def find(self, _query):
+                """Return a cursor with deterministic docs."""
                 base = time.time()
                 docs = [
                     {"ts": base + 1, "rms_db": 70.0, "label": "very_loud"},
@@ -246,7 +267,10 @@ class WebAppTests(TestCase):
         """Purge endpoint should delete documents and report counts."""
 
         class PurgeCollection:
+            """Stub for purge endpoint returning a deletion count."""
+
             def delete_many(self, _query):
+                """Return a fake delete result."""
                 return SimpleNamespace(deleted_count=5)
 
         with mock.patch("app.measurements", return_value=PurgeCollection()):
@@ -261,7 +285,10 @@ class WebAppTests(TestCase):
         """Purge endpoint should surface DB errors."""
 
         class BrokenCollection:
+            """Stub that raises when delete_many is invoked."""
+
             def delete_many(self, _query):
+                """Simulate Mongo failure."""
                 raise PyMongoError("boom")
 
         with self.patch_measurements(BrokenCollection()):
@@ -284,10 +311,14 @@ class WebAppTests(TestCase):
         """Audio endpoint should handle DB failures gracefully."""
 
         class BrokenCollection:
+            """Stub that raises when insert is attempted."""
+
             def insert_one(self, _payload):
+                """Simulate insert failure."""
                 raise PyMongoError("nope")
 
             def delete_many(self, *_args, **_kwargs):  # pragma: no cover
+                """Placeholder to satisfy interface."""
                 return SimpleNamespace(deleted_count=0)
 
         with self.patch_measurements(BrokenCollection()):
@@ -304,7 +335,10 @@ class WebAppTests(TestCase):
         """Stats endpoint should catch DB errors."""
 
         class BrokenCollection:
+            """Stub raising during aggregation."""
+
             def aggregate(self, *_args, **_kwargs):
+                """Raise to simulate aggregation issues."""
                 raise PyMongoError("agg fail")
 
         with self.patch_measurements(BrokenCollection()):
@@ -317,7 +351,10 @@ class WebAppTests(TestCase):
         """History endpoint should catch DB errors."""
 
         class BrokenCollection:
+            """Stub raising during history queries."""
+
             def find(self, *_args, **_kwargs):
+                """Raise to simulate Mongo failure."""
                 raise PyMongoError("find fail")
 
         with self.patch_measurements(BrokenCollection()):
@@ -330,7 +367,10 @@ class WebAppTests(TestCase):
         """Debug insert endpoint should respond with inserted doc."""
 
         class DebugCollection:
+            """Stub capturing inserted docs for verification."""
+
             def insert_one(self, doc):
+                """Store doc for later assertions."""
                 self.doc = doc  # pylint: disable=attribute-defined-outside-init
 
         coll = DebugCollection()
@@ -345,7 +385,10 @@ class WebAppTests(TestCase):
         """Debug insert endpoint should surface DB errors."""
 
         class BrokenCollection:
+            """Stub raising when debug insert is invoked."""
+
             def insert_one(self, _doc):
+                """Raise to simulate DB issue."""
                 raise PyMongoError("debug fail")
 
         with self.patch_measurements(BrokenCollection()):
