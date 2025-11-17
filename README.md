@@ -1,4 +1,6 @@
 ![Lint-free](https://github.com/nyu-software-engineering/containerized-app-exercise/actions/workflows/lint.yml/badge.svg)
+[![ML Client Tests](https://github.com/nyu-software-engineering/containerized-app-exercise/actions/workflows/ml-client-tests.yml/badge.svg)](https://github.com/nyu-software-engineering/containerized-app-exercise/actions/workflows/ml-client-tests.yml)
+[![Web App Tests](https://github.com/nyu-software-engineering/containerized-app-exercise/actions/workflows/web-app-tests.yml/badge.svg)](https://github.com/nyu-software-engineering/containerized-app-exercise/actions/workflows/web-app-tests.yml)
 
 # Containerized App Exercise
 
