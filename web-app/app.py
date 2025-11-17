@@ -193,16 +193,16 @@ def noise_history():
         limit = 200
 
     minutes = request.args.get("minutes")
-    q = {}
+    query = {}
     if minutes:
         try:
             since = time.time() - int(minutes) * 60
-            q = {"ts": {"$gte": since}}
+            query = {"ts": {"$gte": since}}
         except ValueError:
             pass
 
     try:
-        docs = list(measurements().find(q).sort("ts", DESCENDING).limit(limit))
+        docs = list(measurements().find(query).sort("ts", DESCENDING).limit(limit))
         docs.reverse()
         return jsonify(
             {

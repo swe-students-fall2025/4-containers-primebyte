@@ -207,7 +207,7 @@ class TestRunLoop(unittest.TestCase):
         mock_get_db,
         mock_time,
         mock_sleep,
-    ):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    ):  # pylint: disable=too-many-arguments
         """Test run_loop executes one iteration correctly."""
         # Mock dependencies
         mock_get_interval.return_value = 5
