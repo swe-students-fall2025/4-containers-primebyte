@@ -403,6 +403,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_current_noise_handles_db_error(self):
         """Current endpoint should handle MongoDB errors."""
+
         class BrokenCollection:  # pylint: disable=missing-class-docstring
             """Mock collection that raises errors."""
 
@@ -418,6 +419,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_stats_handles_empty_results(self):
         """Stats endpoint should handle empty aggregation results."""
+
         class EmptyStatsCollection:  # pylint: disable=missing-class-docstring
             """Mock collection returning empty aggregation results."""
 
@@ -459,6 +461,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_history_handles_invalid_limit(self):
         """History endpoint should default limit when invalid."""
+
         class HistoryCursor:  # pylint: disable=missing-class-docstring
             """Mock cursor for history queries."""
 
@@ -494,6 +497,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_history_handles_minutes_filter(self):
         """History endpoint should filter by minutes parameter."""
+
         class HistoryCursor:  # pylint: disable=missing-class-docstring
             """Mock cursor for history queries."""
 
@@ -529,6 +533,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_history_handles_invalid_minutes(self):
         """History endpoint should ignore invalid minutes parameter."""
+
         class HistoryCursor:  # pylint: disable=missing-class-docstring
             """Mock cursor for history queries."""
 
@@ -564,6 +569,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_debug_insert_get_method(self):
         """Debug insert endpoint should work with GET method."""
+
         class DebugCollection:  # pylint: disable=missing-class-docstring
             """Mock collection for debug inserts."""
 
@@ -623,8 +629,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
     def test_health_handles_server_selection_timeout(self):
         """Health endpoint should handle ServerSelectionTimeoutError."""
         with mock.patch(
-            "app.measurements",
-            side_effect=ServerSelectionTimeoutError("timeout")
+            "app.measurements", side_effect=ServerSelectionTimeoutError("timeout")
         ), mock.patch("app.ensure_indexes"):
             response = self.client.get("/health")
 
@@ -659,6 +664,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
         try:
             with self.patch_measurements(IndexCollection()):
                 import app  # pylint: disable=import-outside-toplevel,import-error
+
                 app.ensure_indexes()
         finally:
             # Restore setUp patches
@@ -672,13 +678,17 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
         mock_db = SimpleNamespace()
         mock_client = SimpleNamespace(get_default_database=lambda: mock_db)
 
-        with mock.patch("app._get_client", return_value=mock_client):  # pylint: disable=protected-access
+        with mock.patch(
+            "app._get_client", return_value=mock_client
+        ):  # pylint: disable=protected-access
             import app  # pylint: disable=import-outside-toplevel,import-error
+
             database = app.get_db()
             self.assertEqual(database, mock_db)
 
     def test_measurements_returns_collection(self):
         """Test that measurements returns the collection."""
+
         class MockDB:  # pylint: disable=missing-class-docstring
             """Mock database for collection access."""
 
@@ -693,8 +703,11 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
             patcher.stop()
 
         try:
-            with mock.patch("app._get_client", return_value=mock_client):  # pylint: disable=protected-access
+            with mock.patch(
+                "app._get_client", return_value=mock_client
+            ):  # pylint: disable=protected-access
                 import app  # pylint: disable=import-outside-toplevel,import-error
+
                 coll = app.measurements()
                 self.assertEqual(coll, "collection_measurements")
         finally:
@@ -704,13 +717,16 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
     def test_get_client_caches_client(self):
         """Test that _get_client caches the MongoDB client."""
         import app  # pylint: disable=import-outside-toplevel,import-error
+
         app.app.config.pop("_MONGO_CLIENT", None)
 
         mock_client = SimpleNamespace(server_info=lambda: None)
         mock_client_class = mock.Mock(return_value=mock_client)
 
         with mock.patch("app.MongoClient", mock_client_class):
-            with mock.patch.dict(os.environ, {"MONGODB_URL": "mongodb://test:27017/test"}):
+            with mock.patch.dict(
+                os.environ, {"MONGODB_URL": "mongodb://test:27017/test"}
+            ):
                 client1 = app._get_client()  # pylint: disable=protected-access
                 client2 = app._get_client()  # pylint: disable=protected-access
 
@@ -721,6 +737,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
     def test_get_client_uses_existing_cache(self):
         """Test that _get_client returns cached client if available."""
         import app  # pylint: disable=import-outside-toplevel,import-error
+
         cached_client = SimpleNamespace()
         app.app.config["_MONGO_CLIENT"] = cached_client
 
@@ -733,6 +750,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_history_limit_boundaries(self):
         """History endpoint should enforce limit boundaries."""
+
         class HistoryCursor:  # pylint: disable=missing-class-docstring
             """Mock cursor for history queries."""
 
