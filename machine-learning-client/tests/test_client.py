@@ -193,60 +193,48 @@ class TestFakeDecibels(unittest.TestCase):
 class TestRunLoop(unittest.TestCase):
     """Test the main run_loop function."""
 
-    @patch("client.time.sleep")
-    @patch("client.time.time")
-    @patch("client.get_db")
-    @patch("client.get_interval_seconds")
-    @patch("client.fake_decibels")
-    @patch("client.classify_noise")
-    def test_run_loop_single_iteration(
-        self,
-        mock_classify,
-        mock_fake_decibels,
-        mock_get_interval,
-        mock_get_db,
-        mock_time,
-        mock_sleep,
-    ):  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def test_run_loop_single_iteration(self):
         """Test run_loop executes one iteration correctly."""
-        # Mock dependencies
-        mock_get_interval.return_value = 5
-        mock_fake_decibels.return_value = 42.5
-        mock_classify.return_value = "normal"
-        mock_time.return_value = 1234567890.0
+        with patch("client.classify_noise") as mock_classify, patch(
+            "client.fake_decibels"
+        ) as mock_fake_decibels, patch(
+            "client.get_interval_seconds"
+        ) as mock_get_interval, patch(
+            "client.get_db"
+        ) as mock_get_db, patch(
+            "client.time.time"
+        ) as mock_time, patch(
+            "client.time.sleep"
+        ) as mock_sleep:
+            mock_get_interval.return_value = 5
+            mock_fake_decibels.return_value = 42.5
+            mock_classify.return_value = "normal"
+            mock_time.return_value = 1234567890.0
 
-        # Mock database collection
-        mock_collection = MagicMock()
-        mock_db = MagicMock()
-        mock_db.__getitem__.return_value = mock_collection
-        mock_get_db.return_value = mock_db
+            mock_collection = MagicMock()
+            mock_db = MagicMock()
+            mock_db.__getitem__.return_value = mock_collection
+            mock_get_db.return_value = mock_db
 
-        # Mock environment for location
-        with patch.dict(os.environ, {"ML_CLIENT_LOCATION": "test_location"}):
-            # Use a side effect to break the loop after one iteration
-            mock_sleep.side_effect = KeyboardInterrupt
+            with patch.dict(os.environ, {"ML_CLIENT_LOCATION": "test_location"}):
+                mock_sleep.side_effect = KeyboardInterrupt
+                try:
+                    run_loop()
+                except KeyboardInterrupt:
+                    pass
 
-            # Run the loop (should break after one iteration due to KeyboardInterrupt)
-            try:
-                run_loop()
-            except KeyboardInterrupt:
-                pass  # Expected behavior
-
-        # Verify function calls
-        mock_get_interval.assert_called_once()
-        mock_get_db.assert_called_once()
-        mock_fake_decibels.assert_called_once()
-        mock_classify.assert_called_once_with(42.5)
-
-        # Verify database insertion
-        mock_collection.insert_one.assert_called_once_with(
-            {
-                "ts": 1234567890.0,
-                "rms_db": 42.5,
-                "label": "normal",
-                "location": "test_location",
-            }
-        )
+            mock_get_interval.assert_called_once()
+            mock_get_db.assert_called_once()
+            mock_fake_decibels.assert_called_once()
+            mock_classify.assert_called_once_with(42.5)
+            mock_collection.insert_one.assert_called_once_with(
+                {
+                    "ts": 1234567890.0,
+                    "rms_db": 42.5,
+                    "label": "normal",
+                    "location": "test_location",
+                }
+            )
 
         # Verify sleep was called with correct interval
         mock_sleep.assert_called_once_with(5)
