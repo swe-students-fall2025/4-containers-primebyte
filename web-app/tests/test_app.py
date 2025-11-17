@@ -10,7 +10,7 @@ import time
 from types import SimpleNamespace
 from unittest import mock, TestCase
 
-from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
+from pymongo.errors import PyMongoError, ServerSelectionTimeoutError  # type: ignore
 
 
 def _get_flask_app():
@@ -403,8 +403,11 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_current_noise_handles_db_error(self):
         """Current endpoint should handle MongoDB errors."""
-        class BrokenCollection:
+        class BrokenCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection that raises errors."""
+
             def find_one(self, **_kwargs):
+                """Raise PyMongoError to simulate DB failure."""
                 raise PyMongoError("db connection failed")
 
         with self.patch_measurements(BrokenCollection()):
@@ -415,8 +418,11 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_stats_handles_empty_results(self):
         """Stats endpoint should handle empty aggregation results."""
-        class EmptyStatsCollection:
-            def aggregate(self, pipeline):
+        class EmptyStatsCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection returning empty aggregation results."""
+
+            def aggregate(self, _pipeline):
+                """Return empty list to simulate no data."""
                 return []
 
         with self.patch_measurements(EmptyStatsCollection()):
@@ -434,13 +440,15 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
         """Stats endpoint should default to 60 when minutes is invalid."""
         call_count = [0]
 
-        class StatsCollection:
-            def aggregate(self, pipeline):
+        class StatsCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for stats aggregation."""
+
+            def aggregate(self, _pipeline):
+                """Return different results based on call count."""
                 call_count[0] += 1
                 if call_count[0] == 1:
                     return [{"avg_db": 40, "max_db": 60, "min_db": 20, "count": 3}]
-                else:
-                    return [{"_id": "normal", "n": 2}]
+                return [{"_id": "normal", "n": 2}]
 
         with self.patch_measurements(StatsCollection()):
             response = self.client.get("/api/stats?minutes=invalid")
@@ -451,21 +459,30 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_history_handles_invalid_limit(self):
         """History endpoint should default limit when invalid."""
-        class HistoryCursor:
+        class HistoryCursor:  # pylint: disable=missing-class-docstring
+            """Mock cursor for history queries."""
+
             def __init__(self):
+                """Initialize empty cursor."""
                 self._docs = []
 
             def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
                 return self
 
             def limit(self, *_args, **_kwargs):
+                """Return self for chaining."""
                 return self
 
             def __iter__(self):
+                """Return iterator over docs."""
                 return iter(self._docs)
 
-        class HistoryCollection:
+        class HistoryCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for history queries."""
+
             def find(self, _query):
+                """Return mock cursor."""
                 return HistoryCursor()
 
         with self.patch_measurements(HistoryCollection()):
@@ -477,21 +494,30 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_history_handles_minutes_filter(self):
         """History endpoint should filter by minutes parameter."""
-        class HistoryCursor:
+        class HistoryCursor:  # pylint: disable=missing-class-docstring
+            """Mock cursor for history queries."""
+
             def __init__(self):
+                """Initialize empty cursor."""
                 self._docs = []
 
             def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
                 return self
 
             def limit(self, *_args, **_kwargs):
+                """Return self for chaining."""
                 return self
 
             def __iter__(self):
+                """Return iterator over docs."""
                 return iter(self._docs)
 
-        class HistoryCollection:
-            def find(self, query):
+        class HistoryCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for history queries."""
+
+            def find(self, _query):
+                """Return mock cursor."""
                 return HistoryCursor()
 
         with self.patch_measurements(HistoryCollection()):
@@ -503,21 +529,30 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_history_handles_invalid_minutes(self):
         """History endpoint should ignore invalid minutes parameter."""
-        class HistoryCursor:
+        class HistoryCursor:  # pylint: disable=missing-class-docstring
+            """Mock cursor for history queries."""
+
             def __init__(self):
+                """Initialize empty cursor."""
                 self._docs = []
 
             def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
                 return self
 
             def limit(self, *_args, **_kwargs):
+                """Return self for chaining."""
                 return self
 
             def __iter__(self):
+                """Return iterator over docs."""
                 return iter(self._docs)
 
-        class HistoryCollection:
+        class HistoryCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for history queries."""
+
             def find(self, _query):
+                """Return mock cursor."""
                 return HistoryCursor()
 
         with self.patch_measurements(HistoryCollection()):
@@ -529,9 +564,16 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_debug_insert_get_method(self):
         """Debug insert endpoint should work with GET method."""
-        class DebugCollection:
+        class DebugCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for debug inserts."""
+
+            def __init__(self):
+                """Initialize with empty doc."""
+                self.doc = None
+
             def insert_one(self, doc):
-                self.doc = doc  
+                """Store inserted doc."""
+                self.doc = doc
 
         coll = DebugCollection()
         with self.patch_measurements(coll):
@@ -546,11 +588,15 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
         """Audio endpoint should default decibels to 0 when missing."""
         inserted = {}
 
-        class DummyCollection:
+        class DummyCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for audio data inserts."""
+
             def insert_one(self, payload):
+                """Capture inserted payload."""
                 inserted.update(payload)
 
             def delete_many(self, *_args, **_kwargs):
+                """Return empty delete result."""
                 return SimpleNamespace(deleted_count=0)
 
         with self.patch_measurements(DummyCollection()):
@@ -592,14 +638,18 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
         """Test that ensure_indexes creates indexes."""
         indexes_created = []
 
-        class IndexCollection:
+        class IndexCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for index creation."""
+
             def create_index(self, keys, **kwargs):
+                """Record index creation."""
                 indexes_created.append((keys, kwargs.get("background")))
 
             def insert_one(self, *_args, **_kwargs):
-                pass
+                """Placeholder method."""
 
             def delete_many(self, *_args, **_kwargs):
+                """Return empty delete result."""
                 return SimpleNamespace(deleted_count=0)
 
         # Stop all setUp patches temporarily
@@ -608,7 +658,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
         try:
             with self.patch_measurements(IndexCollection()):
-                import app
+                import app  # pylint: disable=import-outside-toplevel,import-error
                 app.ensure_indexes()
         finally:
             # Restore setUp patches
@@ -622,15 +672,18 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
         mock_db = SimpleNamespace()
         mock_client = SimpleNamespace(get_default_database=lambda: mock_db)
 
-        with mock.patch("app._get_client", return_value=mock_client):
-            import app
-            db = app.get_db()
-            self.assertEqual(db, mock_db)
+        with mock.patch("app._get_client", return_value=mock_client):  # pylint: disable=protected-access
+            import app  # pylint: disable=import-outside-toplevel,import-error
+            database = app.get_db()
+            self.assertEqual(database, mock_db)
 
     def test_measurements_returns_collection(self):
         """Test that measurements returns the collection."""
-        class MockDB:
+        class MockDB:  # pylint: disable=missing-class-docstring
+            """Mock database for collection access."""
+
             def __getitem__(self, key):
+                """Return mock collection name."""
                 return f"collection_{key}"
 
         mock_db = MockDB()
@@ -640,8 +693,8 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
             patcher.stop()
 
         try:
-            with mock.patch("app._get_client", return_value=mock_client):
-                import app
+            with mock.patch("app._get_client", return_value=mock_client):  # pylint: disable=protected-access
+                import app  # pylint: disable=import-outside-toplevel,import-error
                 coll = app.measurements()
                 self.assertEqual(coll, "collection_measurements")
         finally:
@@ -650,7 +703,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_get_client_caches_client(self):
         """Test that _get_client caches the MongoDB client."""
-        import app
+        import app  # pylint: disable=import-outside-toplevel,import-error
         app.app.config.pop("_MONGO_CLIENT", None)
 
         mock_client = SimpleNamespace(server_info=lambda: None)
@@ -658,8 +711,8 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
         with mock.patch("app.MongoClient", mock_client_class):
             with mock.patch.dict(os.environ, {"MONGODB_URL": "mongodb://test:27017/test"}):
-                client1 = app._get_client()
-                client2 = app._get_client()
+                client1 = app._get_client()  # pylint: disable=protected-access
+                client2 = app._get_client()  # pylint: disable=protected-access
 
                 self.assertEqual(mock_client_class.call_count, 1)
                 self.assertEqual(client1, client2)
@@ -667,35 +720,45 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_get_client_uses_existing_cache(self):
         """Test that _get_client returns cached client if available."""
-        import app
+        import app  # pylint: disable=import-outside-toplevel,import-error
         cached_client = SimpleNamespace()
         app.app.config["_MONGO_CLIENT"] = cached_client
 
         mock_client_class = mock.Mock()
 
         with mock.patch("app.MongoClient", mock_client_class):
-            client = app._get_client()
+            client = app._get_client()  # pylint: disable=protected-access
             self.assertEqual(client, cached_client)
             mock_client_class.assert_not_called()
 
     def test_history_limit_boundaries(self):
         """History endpoint should enforce limit boundaries."""
-        class HistoryCursor:
+        class HistoryCursor:  # pylint: disable=missing-class-docstring
+            """Mock cursor for history queries."""
+
             def __init__(self):
+                """Initialize empty cursor with limit tracking."""
                 self._docs = []
+                self._limit = None
 
             def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
                 return self
 
             def limit(self, limit_val, **_kwargs):
+                """Set limit and return docs."""
                 self._limit = limit_val
                 return self._docs
 
             def __iter__(self):
+                """Return iterator over docs."""
                 return iter(self._docs)
 
-        class HistoryCollection:
+        class HistoryCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for history queries."""
+
             def find(self, _query):
+                """Return mock cursor."""
                 return HistoryCursor()
 
         with self.patch_measurements(HistoryCollection()):
@@ -711,8 +774,11 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
         """Stats endpoint should handle empty base aggregation."""
         call_count = [0]
 
-        class StatsCollection:
-            def aggregate(self, pipeline):
+        class StatsCollection:  # pylint: disable=missing-class-docstring
+            """Mock collection for stats aggregation."""
+
+            def aggregate(self, _pipeline):
+                """Return different results based on call count."""
                 call_count[0] += 1
                 if call_count[0] == 1:
                     return []  # Empty base results
