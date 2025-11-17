@@ -188,7 +188,6 @@ class TestFakeDecibels(unittest.TestCase):
         with patch("client.random.random") as mock_random, patch(
             "client.random.uniform"
         ) as mock_uniform:
-
             mock_random.return_value = 0.5  # No spike
             mock_uniform.return_value = 37.123456  # Not rounded
 
@@ -375,9 +374,7 @@ class TestRunLoop(unittest.TestCase):
                 """Return the stored docs regardless of limit."""
                 return self._docs
 
-        mock_collection.find.return_value = FakeCursor(
-            [{"_id": "abc", "rms_db": 30.0}]
-        )
+        mock_collection.find.return_value = FakeCursor([{"_id": "abc", "rms_db": 30.0}])
         mock_db = MagicMock()
         mock_db.__getitem__.return_value = mock_collection
 

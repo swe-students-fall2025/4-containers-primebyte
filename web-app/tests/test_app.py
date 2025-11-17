@@ -130,6 +130,7 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_health_reports_count(self):
         """Health endpoint should report database counts when healthy."""
+
         class HealthCollection:
             """Stub that returns a fixed document count for health checks."""
 
@@ -148,9 +149,9 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
 
     def test_health_handles_db_failure(self):
         """Health endpoint should surface degraded status when DB fails."""
-        with mock.patch("app.ensure_indexes", side_effect=PyMongoError("fail")), mock.patch(
-            "app.measurements"
-        ):
+        with mock.patch(
+            "app.ensure_indexes", side_effect=PyMongoError("fail")
+        ), mock.patch("app.measurements"):
             response = self.client.get("/health")
 
         payload = response.get_json()
@@ -302,7 +303,9 @@ class WebAppTests(TestCase):  # pylint: disable=too-many-public-methods
     def test_receive_audio_data_invalid_payload(self):
         """Audio endpoint should reject invalid decibels."""
         response = self.client.post(
-            "/api/audio_data", data=json.dumps({"decibels": "bad"}), content_type="application/json"
+            "/api/audio_data",
+            data=json.dumps({"decibels": "bad"}),
+            content_type="application/json",
         )
         self.assertEqual(response.status_code, 500)
         self.assertFalse(response.get_json()["ok"])
