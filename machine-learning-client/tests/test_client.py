@@ -4,7 +4,15 @@ import os
 import sys
 import unittest
 from unittest.mock import patch, MagicMock
-from client import get_db, get_interval_seconds, fake_decibels, classify_noise, run_loop
+from client import (
+    get_db,
+    get_interval_seconds,
+    fake_decibels,
+    classify_noise,
+    classify_noise_ml,
+    use_fake_data,
+    run_loop,
+)
 
 
 # Add the parent directory to Python path to import client
@@ -180,7 +188,6 @@ class TestFakeDecibels(unittest.TestCase):
         with patch("client.random.random") as mock_random, patch(
             "client.random.uniform"
         ) as mock_uniform:
-
             mock_random.return_value = 0.5  # No spike
             mock_uniform.return_value = 37.123456  # Not rounded
 
@@ -188,6 +195,40 @@ class TestFakeDecibels(unittest.TestCase):
 
             # Should be rounded to 1 decimal place
             self.assertEqual(result, 37.1)
+
+
+class TestConfigurationFlags(unittest.TestCase):
+    """Verify helpers that depend on environment configuration."""
+
+    def test_use_fake_data_truthy_values(self):
+        """Truthy env values should enable fake data."""
+        for val in ("true", "TRUE", "1", "Yes"):
+            with self.subTest(val=val):
+                with patch.dict(os.environ, {"USE_FAKE_DATA": val}):
+                    self.assertTrue(use_fake_data())
+
+    def test_use_fake_data_false_values(self):
+        """Falsey env values should disable fake data."""
+        for val in ("false", "0", "no"):
+            with self.subTest(val=val):
+                with patch.dict(os.environ, {"USE_FAKE_DATA": val}):
+                    self.assertFalse(use_fake_data())
+
+    def test_classify_noise_ml_delegates_to_hardcoded(self):
+        """Placeholder ML classifier should call hardcoded logic."""
+        with patch("client.classify_noise_hardcoded", return_value="normal") as mock_fn:
+            result = classify_noise_ml(42.0)
+        self.assertEqual(result, "normal")
+        mock_fn.assert_called_once_with(42.0)
+
+    def test_classify_noise_calls_ml_when_real_mode(self):
+        """classify_noise should call ML classifier when fake mode disabled."""
+        with patch("client.use_fake_data", return_value=False), patch(
+            "client.classify_noise_ml", return_value="ml-label"
+        ) as mock_ml:
+            result = classify_noise(55.0)
+        self.assertEqual(result, "ml-label")
+        mock_ml.assert_called_once_with(55.0)
 
 
 class TestRunLoop(unittest.TestCase):
@@ -318,6 +359,41 @@ class TestRunLoop(unittest.TestCase):
 
         # Should have tried to sleep once
         mock_sleep.assert_called_once()
+
+    def test_run_loop_real_mode_updates_unlabeled(self):
+        """Real mode should update unlabeled measurements then sleep."""
+        mock_collection = MagicMock()
+
+        class FakeCursor:  # pylint: disable=too-few-public-methods
+            """A minimal cursor stub that returns canned docs."""
+
+            def __init__(self, docs):
+                self._docs = docs
+
+            def limit(self, *_args, **_kwargs):
+                """Return the stored docs regardless of limit."""
+                return self._docs
+
+        mock_collection.find.return_value = FakeCursor([{"_id": "abc", "rms_db": 30.0}])
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+
+        with patch("client.get_interval_seconds", return_value=3), patch(
+            "client.get_db", return_value=mock_db
+        ), patch("client.time.sleep") as mock_sleep, patch(
+            "client.classify_noise", return_value="quiet"
+        ) as mock_classify, patch(
+            "client.use_fake_data", return_value=False
+        ) as mock_use_fake:
+            mock_sleep.side_effect = KeyboardInterrupt
+            run_loop()
+
+        mock_use_fake.assert_called_once()
+        mock_classify.assert_called_once_with(30.0)
+        mock_collection.update_one.assert_called_once_with(
+            {"_id": "abc"}, {"$set": {"label": "quiet"}}
+        )
+        mock_sleep.assert_called_once_with(3)
 
 
 if __name__ == "__main__":
