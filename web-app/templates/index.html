@@ -58,7 +58,7 @@ async function loadCurrentNoise() {
         const data = await resp.json();
         document.getElementById("current-noise-level").textContent = data.noise_level;
         document.getElementById("current-decibels").textContent = data.decibels.toFixed(1) + " dB";
-        document.getElementById("last-updated").textContent = "Last updated: " + data.timestamp;
+        document.getElementById("last-updated").textContent = "Last updated: " + new Date(data.timestamp).toLocaleString();
     } catch (err) {
         console.error("Failed to load current noise:", err);
     }

@@ -70,7 +70,10 @@ async function loadHistory() {
             const tdDb    = document.createElement("td");
             const tdLabel = document.createElement("td");
 
-            tdTime.textContent  = timestamps[i];
+            const rawTimestamp = timestamps[i];
+            const dateObj = new Date(rawTimestamp);
+            // readable time
+            tdTime.textContent = dateObj.toLocaleString(); 
             tdDb.textContent    = decibels[i]?.toFixed
                 ? decibels[i].toFixed(1)
                 : decibels[i];
