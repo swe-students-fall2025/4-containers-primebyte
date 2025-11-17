@@ -1,11 +1,11 @@
 """Simple tests for the SoundWatch Flask web application."""
 
+import importlib
 import json
 import os
 import sys
 from types import SimpleNamespace
-
-import pytest
+from unittest import mock, TestCase
 
 
 def _get_flask_app():
@@ -14,96 +14,94 @@ def _get_flask_app():
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-    from app import app as flask_app  # pylint: disable=import-outside-toplevel
-
-    return flask_app
-
-
-app = _get_flask_app()
+    module = importlib.import_module("app")
+    return module.app
 
 
-@pytest.fixture(name="app_client")
-def client_fixture(monkeypatch):
-    """Yield a Flask test client with common patches."""
-    app.config.update(TESTING=True)
-
-    # Avoid accidentally creating a real Mongo connection during tests.
-    dummy_coll = SimpleNamespace(
-        insert_one=lambda *args, **kwargs: None,
-        delete_many=lambda *args, **kwargs: SimpleNamespace(deleted_count=0),
-    )
-
-    def _return_dummy_collection():
-        return dummy_coll
-
-    monkeypatch.setattr("app.measurements", _return_dummy_collection)
-
-    def _noop():
-        return None
-
-    monkeypatch.setattr("app.ensure_indexes", _noop)
-
-    with app.test_client() as test_client:
-        yield test_client
+APP = _get_flask_app()
 
 
-def test_index_redirects_to_dashboard(app_client):
-    """Root path should redirect to the dashboard route."""
-    response = app_client.get("/", follow_redirects=False)
-    assert response.status_code in (301, 302)
-    assert "/dashboard" in response.headers["Location"]
+class WebAppTests(TestCase):
+    """Basic integration-ish tests for the Flask endpoints."""
 
+    def setUp(self):
+        """Configure test client and stub heavy dependencies."""
+        APP.config.update(TESTING=True)
+        self._patchers = []
 
-def test_dashboard_renders_template(app_client):
-    """Dashboard route should return HTML content."""
-    response = app_client.get("/dashboard")
-    assert response.status_code == 200
-    assert "text/html" in response.headers["Content-Type"]
+        dummy_coll = SimpleNamespace(
+            insert_one=lambda *args, **kwargs: None,
+            delete_many=lambda *args, **kwargs: SimpleNamespace(deleted_count=0),
+        )
 
+        def start_patch(target, new):
+            patcher = mock.patch(target, new=new)
+            self._patchers.append(patcher)
+            return patcher.start()
 
-def test_config_default_interval(app_client, monkeypatch):
-    """Config endpoint should fall back to the default interval."""
-    monkeypatch.delenv("ML_CLIENT_INTERVAL_SECONDS", raising=False)
-    response = app_client.get("/api/config")
-    assert response.status_code == 200
-    assert response.get_json() == {"interval_seconds": 5, "interval_ms": 5000}
+        start_patch("app.measurements", new=lambda: dummy_coll)
+        start_patch("app.ensure_indexes", new=lambda: None)
 
+        self.client = APP.test_client()
 
-def test_config_custom_interval(app_client, monkeypatch):
-    """Config endpoint should use custom interval seconds when set."""
-    monkeypatch.setenv("ML_CLIENT_INTERVAL_SECONDS", "7")
-    response = app_client.get("/api/config")
-    assert response.status_code == 200
-    assert response.get_json() == {"interval_seconds": 7, "interval_ms": 7000}
+    def tearDown(self):
+        """Stop all applied patches."""
+        for patcher in self._patchers:
+            patcher.stop()
 
+    def test_index_redirects_to_dashboard(self):
+        """Root path should redirect to the dashboard route."""
+        response = self.client.get("/", follow_redirects=False)
+        self.assertIn(response.status_code, (301, 302))
+        self.assertIn("/dashboard", response.headers["Location"])
 
-def test_receive_audio_data_inserts_measurement(app_client, monkeypatch):
-    """Audio endpoint should store readings and acknowledge success."""
-    inserted = {}
+    def test_dashboard_renders_template(self):
+        """Dashboard route should return HTML content."""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers["Content-Type"])
 
-    class DummyCollection:
-        """Minimal collection stub for verifying inserts."""
+    def test_config_default_interval(self):
+        """Config endpoint should fall back to the default interval."""
+        with mock.patch.dict(os.environ, {}, clear=True):
+            response = self.client.get("/api/config")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(), {"interval_seconds": 5, "interval_ms": 5000}
+        )
 
-        def insert_one(self, payload):
-            """Capture payloads for assertions."""
-            inserted.update(payload)
+    def test_config_custom_interval(self):
+        """Config endpoint should use custom interval seconds when set."""
+        with mock.patch.dict(os.environ, {"ML_CLIENT_INTERVAL_SECONDS": "7"}):
+            response = self.client.get("/api/config")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(), {"interval_seconds": 7, "interval_ms": 7000}
+        )
 
-        def delete_many(self, *_args, **_kwargs):  # pragma: no cover - helper only
-            """Expose delete_many to satisfy purge handler expectations."""
-            return SimpleNamespace(deleted_count=0)
+    def test_receive_audio_data_inserts_measurement(self):
+        """Audio endpoint should store readings and acknowledge success."""
+        inserted = {}
 
-    def _build_dummy_collection():
-        return DummyCollection()
+        class DummyCollection:
+            """Minimal collection stub for verifying inserts."""
 
-    monkeypatch.setattr("app.measurements", _build_dummy_collection)
+            def insert_one(self, payload):
+                """Capture payloads for assertions."""
+                inserted.update(payload)
 
-    response = app_client.post(
-        "/api/audio_data",
-        data=json.dumps({"decibels": 42.5}),
-        content_type="application/json",
-    )
+            def delete_many(self, *_args, **_kwargs):  # pragma: no cover
+                """Expose delete_many to satisfy purge handler expectations."""
+                return SimpleNamespace(deleted_count=0)
 
-    assert response.status_code == 200
-    assert response.get_json() == {"ok": True}
-    assert inserted["rms_db"] == 42.5
-    assert inserted["label"] is None
+        with mock.patch("app.measurements", return_value=DummyCollection()):
+            response = self.client.post(
+                "/api/audio_data",
+                data=json.dumps({"decibels": 42.5}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"ok": True})
+        self.assertEqual(inserted["rms_db"], 42.5)
+        self.assertIsNone(inserted["label"])
