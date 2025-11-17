@@ -90,6 +90,12 @@ Capture real audio from your browser microphone:
 Use the "Purge All Data" button on the dashboard to clear all historical measurements from the database.
 
 ## Environment Variables
+All services read configuration from a `.env` file in the project root.
+
+To start:
+```bash
+cp .env.example .env
+```
 
 - `MONGODB_URL` — MongoDB connection string (default: `mongodb://localhost:27017/noise_monitor`)
 - `ML_CLIENT_INTERVAL_SECONDS` — How often ML client checks for unlabeled data to classify in real mode, or generates fake data in fake mode (default: 5)
@@ -137,3 +143,63 @@ Run tests with coverage:
 ```bash
 pipenv run pytest --cov
 ```
+## Troubleshooting
+
+### App does not start / containers exit immediately
+
+- Check logs:
+  ```bash
+  docker-compose logs web-app
+  docker-compose logs ml-client
+  docker-compose logs mongo
+  ```
+
+- Ensure `.env` exists:
+  ```bash
+  cp .env.example .env
+  ```
+
+- Restart everything:
+  ```bash
+  docker-compose down
+  docker-compose up --build
+  ```
+
+### Cannot access http://localhost:5000/
+
+- Confirm services are running:
+  ```bash
+  docker-compose ps
+  ```
+- Ensure port `5000` is not being used by another process.
+
+### Microphone not working
+
+- Set `USE_FAKE_DATA=false` in `.env`
+- Allow microphone permissions in the browser
+- Try using Chrome — some browsers block microphone access on localhost
+
+### No data appears in dashboard
+
+- If using fake data:
+  ```bash
+  docker-compose logs ml-client
+  ```
+- For real microphone mode:
+  - Click “Start Microphone”
+  - Check browser permissions
+
+### Tests or lint failing
+
+- Reinstall dev dependencies:
+  ```bash
+  pipenv sync --dev
+  ```
+- Auto-format:
+  ```bash
+  pipenv run black .
+  ```
+- Run test suite:
+  ```bash
+  pipenv run pytest
+  ```
