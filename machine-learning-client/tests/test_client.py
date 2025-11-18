@@ -70,7 +70,7 @@ class TestIntervalFunctions(unittest.TestCase):
         """Test get_interval_seconds with default value."""
         with patch.dict(os.environ, {}, clear=True):
             interval = get_interval_seconds()
-            self.assertEqual(interval, 5)
+            self.assertEqual(interval, 1)
 
     def test_get_interval_seconds_custom(self):
         """Test get_interval_seconds with custom environment value."""
@@ -82,7 +82,7 @@ class TestIntervalFunctions(unittest.TestCase):
         """Test get_interval_seconds with invalid environment value."""
         with patch.dict(os.environ, {"ML_CLIENT_INTERVAL_SECONDS": "invalid"}):
             interval = get_interval_seconds()
-            self.assertEqual(interval, 5)  # Should fall back to default
+            self.assertEqual(interval, 1)  # Should fall back to default
 
     def test_get_interval_seconds_minimum(self):
         """Test get_interval_seconds ensures minimum value of 1."""
