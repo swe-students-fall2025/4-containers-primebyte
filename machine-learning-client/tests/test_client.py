@@ -12,6 +12,8 @@ from client import (
     classify_noise_ml,
     use_fake_data,
     run_loop,
+    _get_real_decibel_history,
+    _kmeans_1d,
 )
 
 
@@ -68,7 +70,7 @@ class TestIntervalFunctions(unittest.TestCase):
         """Test get_interval_seconds with default value."""
         with patch.dict(os.environ, {}, clear=True):
             interval = get_interval_seconds()
-            self.assertEqual(interval, 5)
+            self.assertEqual(interval, 1)
 
     def test_get_interval_seconds_custom(self):
         """Test get_interval_seconds with custom environment value."""
@@ -80,7 +82,7 @@ class TestIntervalFunctions(unittest.TestCase):
         """Test get_interval_seconds with invalid environment value."""
         with patch.dict(os.environ, {"ML_CLIENT_INTERVAL_SECONDS": "invalid"}):
             interval = get_interval_seconds()
-            self.assertEqual(interval, 5)  # Should fall back to default
+            self.assertEqual(interval, 1)  # Should fall back to default
 
     def test_get_interval_seconds_minimum(self):
         """Test get_interval_seconds ensures minimum value of 1."""
@@ -216,7 +218,9 @@ class TestConfigurationFlags(unittest.TestCase):
 
     def test_classify_noise_ml_delegates_to_hardcoded(self):
         """Placeholder ML classifier should call hardcoded logic."""
-        with patch("client.classify_noise_hardcoded", return_value="normal") as mock_fn:
+        with patch("client._get_real_decibel_history", return_value=[]), patch(
+            "client.classify_noise_hardcoded", return_value="normal"
+        ) as mock_fn:
             result = classify_noise_ml(42.0)
         self.assertEqual(result, "normal")
         mock_fn.assert_called_once_with(42.0)
@@ -396,6 +400,264 @@ class TestRunLoop(unittest.TestCase):
         mock_sleep.assert_called_once_with(3)
 
 
-if __name__ == "__main__":
-    # Run the tests
-    unittest.main()
+class TestGetRealDecibelHistory(unittest.TestCase):
+    """Test _get_real_decibel_history function."""
+
+    @patch("client.get_db")
+    def test_get_real_decibel_history_returns_list(self, mock_get_db):
+        """Test that _get_real_decibel_history returns a list of decibels."""
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        # Mock cursor with documents
+        class FakeCursor:
+            """Mock cursor for testing."""
+
+            def __init__(self, docs):
+                self._docs = docs
+
+            def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
+                return self
+
+            def limit(self, *_args, **_kwargs):
+                """Return stored documents."""
+                return self._docs
+
+        docs = [{"rms_db": 30.0}, {"rms_db": 45.5}, {"rms_db": 60.2}]
+        mock_collection.find.return_value = FakeCursor(docs)
+
+        result = _get_real_decibel_history(limit=3)
+
+        self.assertEqual(result, [30.0, 45.5, 60.2])
+        mock_collection.find.assert_called_once_with(
+            {"source": "real", "rms_db": {"$ne": None}}
+        )
+
+    @patch("client.get_db")
+    def test_get_real_decibel_history_default_limit(self, mock_get_db):
+        """Test _get_real_decibel_history with default limit."""
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        class FakeCursor:
+            """Mock cursor that tracks limit parameter."""
+
+            def __init__(self):
+                self.limit_called_with = None
+
+            def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
+                return self
+
+            def limit(self, n):
+                """Store limit parameter and return empty list."""
+                self.limit_called_with = n
+                return []
+
+        fake_cursor = FakeCursor()
+        mock_collection.find.return_value = fake_cursor
+
+        _get_real_decibel_history()
+
+        self.assertEqual(fake_cursor.limit_called_with, 500)
+
+    @patch("client.get_db")
+    def test_get_real_decibel_history_handles_missing_rms_db(self, mock_get_db):
+        """Test that _get_real_decibel_history handles docs with malformed rms_db."""
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        class FakeCursor:
+            """Mock cursor returning docs with malformed data."""
+
+            def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
+                return self
+
+            def limit(self, *_args, **_kwargs):
+                """Return documents including invalid rms_db."""
+                # Include a doc with invalid rms_db that will cause conversion error
+                return [{"rms_db": 30.0}, {"rms_db": "invalid"}, {"rms_db": 50.0}]
+
+        mock_collection.find.return_value = FakeCursor()
+
+        result = _get_real_decibel_history()
+
+        # Should skip the invalid value
+        self.assertEqual(result, [30.0, 50.0])
+
+    @patch("client.get_db")
+    def test_get_real_decibel_history_empty_collection(self, mock_get_db):
+        """Test _get_real_decibel_history with no documents."""
+        mock_collection = MagicMock()
+        mock_db = MagicMock()
+        mock_db.__getitem__.return_value = mock_collection
+        mock_get_db.return_value = mock_db
+
+        class FakeCursor:
+            """Mock cursor returning empty collection."""
+
+            def sort(self, *_args, **_kwargs):
+                """Return self for chaining."""
+                return self
+
+            def limit(self, *_args, **_kwargs):
+                """Return empty list."""
+                return []
+
+        mock_collection.find.return_value = FakeCursor()
+
+        result = _get_real_decibel_history()
+
+        self.assertEqual(result, [])
+
+
+class TestKMeans1D(unittest.TestCase):
+    """Test _kmeans_1d function."""
+
+    def test_kmeans_1d_basic_clustering(self):
+        """Test k-means with clearly separated clusters."""
+        values = [1.0, 2.0, 3.0, 50.0, 51.0, 52.0, 100.0, 101.0, 102.0]
+        centroids = _kmeans_1d(values, k=3, max_iters=20)
+
+        self.assertEqual(len(centroids), 3)
+        # Centroids should be roughly [2, 51, 101]
+        self.assertAlmostEqual(centroids[0], 2.0, delta=1.0)
+        self.assertAlmostEqual(centroids[1], 51.0, delta=1.0)
+        self.assertAlmostEqual(centroids[2], 101.0, delta=1.0)
+
+    def test_kmeans_1d_single_cluster(self):
+        """Test k-means with k=1."""
+        values = [10.0, 15.0, 20.0, 25.0]
+        centroids = _kmeans_1d(values, k=1)
+
+        self.assertEqual(len(centroids), 1)
+        self.assertAlmostEqual(centroids[0], 17.5, delta=0.1)
+
+    def test_kmeans_1d_fewer_values_than_k(self):
+        """Test k-means when fewer values than k (k is clamped to n)."""
+        values = [10.0, 20.0]
+        centroids = _kmeans_1d(values, k=5)
+
+        # k is clamped to len(values)=2, so returns 2 centroids
+        self.assertEqual(len(centroids), 2)
+        self.assertIn(10.0, centroids)
+        self.assertIn(20.0, centroids)
+
+    def test_kmeans_1d_convergence(self):
+        """Test that k-means converges (centroids don't change)."""
+        values = [1.0, 2.0, 3.0, 10.0, 11.0, 12.0]
+        centroids = _kmeans_1d(values, k=2, max_iters=100)
+
+        # With enough iterations, should converge to stable centroids
+        self.assertEqual(len(centroids), 2)
+        # Check that max_iters=100 produces stable results
+        self.assertAlmostEqual(centroids[0], 2.0, delta=1.0)
+        self.assertAlmostEqual(centroids[1], 11.0, delta=1.0)
+
+    def test_kmeans_1d_identical_values(self):
+        """Test k-means with all identical values."""
+        values = [42.0] * 10
+        centroids = _kmeans_1d(values, k=3)
+
+        self.assertEqual(len(centroids), 3)
+        # All centroids should be the same value
+        for c in centroids:
+            self.assertAlmostEqual(c, 42.0, delta=0.01)
+
+    def test_kmeans_1d_returns_sorted(self):
+        """Test that k-means returns sorted centroids."""
+        values = [100.0, 50.0, 25.0, 75.0, 10.0]
+        centroids = _kmeans_1d(values, k=3)
+
+        self.assertEqual(len(centroids), 3)
+        # Check that centroids are sorted
+        self.assertEqual(centroids, sorted(centroids))
+
+
+class TestClassifyNoiseMlWithKMeans(unittest.TestCase):
+    """Test classify_noise_ml with k-means implementation."""
+
+    @patch("client._get_real_decibel_history")
+    @patch("client._kmeans_1d")
+    def test_classify_noise_ml_uses_kmeans(self, mock_kmeans, mock_history):
+        """Test that classify_noise_ml calls k-means with sufficient data."""
+        mock_history.return_value = [
+            20.0,
+            30.0,
+            40.0,
+            50.0,
+            60.0,
+            70.0,
+            80.0,
+            90.0,
+            100.0,
+            110.0,
+        ]
+        mock_kmeans.return_value = [25.0, 45.0, 65.0, 85.0, 105.0]
+
+        result = classify_noise_ml(55.0)
+
+        mock_history.assert_called_once()
+        mock_kmeans.assert_called_once_with(
+            [20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0], k=5
+        )
+        # 55.0 is closest to 45.0 (cluster 1, "quiet")
+        self.assertEqual(result, "quiet")
+
+    @patch("client._get_real_decibel_history")
+    @patch("client.classify_noise_hardcoded")
+    def test_classify_noise_ml_falls_back_with_insufficient_data(
+        self, mock_hardcoded, mock_history
+    ):
+        """Test that classify_noise_ml falls back to hardcoded with <10 samples."""
+        mock_history.return_value = [20.0, 30.0, 40.0]
+        mock_hardcoded.return_value = "normal"
+
+        result = classify_noise_ml(42.0)
+
+        mock_history.assert_called_once()
+        mock_hardcoded.assert_called_once_with(42.0)
+        self.assertEqual(result, "normal")
+
+    @patch("client._get_real_decibel_history")
+    @patch("client._kmeans_1d")
+    def test_classify_noise_ml_cluster_mapping_silent(self, mock_kmeans, mock_history):
+        """Test cluster 0 maps to silent."""
+        mock_history.return_value = [10.0] * 20
+        mock_kmeans.return_value = [10.0, 30.0, 50.0, 70.0, 90.0]
+
+        result = classify_noise_ml(10.0)
+
+        self.assertEqual(result, "silent")
+
+    @patch("client._get_real_decibel_history")
+    @patch("client._kmeans_1d")
+    def test_classify_noise_ml_cluster_mapping_very_loud(
+        self, mock_kmeans, mock_history
+    ):
+        """Test cluster 4 maps to very_loud."""
+        mock_history.return_value = [90.0] * 20
+        mock_kmeans.return_value = [10.0, 30.0, 50.0, 70.0, 90.0]
+
+        result = classify_noise_ml(95.0)
+
+        self.assertEqual(result, "very_loud")
+
+    @patch("client._get_real_decibel_history")
+    @patch("client._kmeans_1d")
+    def test_classify_noise_ml_cluster_mapping_normal(self, mock_kmeans, mock_history):
+        """Test cluster 2 maps to normal."""
+        mock_history.return_value = [50.0] * 20
+        mock_kmeans.return_value = [10.0, 30.0, 50.0, 70.0, 90.0]
+
+        result = classify_noise_ml(52.0)
+
+        self.assertEqual(result, "normal")
