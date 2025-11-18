@@ -61,7 +61,7 @@ MongoDB will be seeded automatically as the ML client runs (fake or real mode); 
 
 ## Configuration (`.env`)
 
-All services read configuration from `.env` in the repo root. The `.env.example` file lists all required keys. The actual `.env` with any real secrets/credentials should not be committed and must be provided separately to the course staff if requested.
+All services read configuration from `.env` in the repo root. Simply copying `.env.example` to `.env` provides defaults that work, no additional configuration needed unless you want to test without a microphone or use fake data generation, below are the key variables you can change.
 
 **Key variables:**
 
