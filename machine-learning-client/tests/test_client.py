@@ -218,7 +218,9 @@ class TestConfigurationFlags(unittest.TestCase):
 
     def test_classify_noise_ml_delegates_to_hardcoded(self):
         """Placeholder ML classifier should call hardcoded logic."""
-        with patch("client.classify_noise_hardcoded", return_value="normal") as mock_fn:
+        with patch("client._get_real_decibel_history", return_value=[]), patch(
+            "client.classify_noise_hardcoded", return_value="normal"
+        ) as mock_fn:
             result = classify_noise_ml(42.0)
         self.assertEqual(result, "normal")
         mock_fn.assert_called_once_with(42.0)
