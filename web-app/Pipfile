@@ -10,11 +10,11 @@ Flask = "*"
 pymongo = "*"
 astroid = "*"
 python-dotenv = "*"
-
-[dev-packages]
 pytest = "*"
 pytest-cov = "*"
 coverage = "*"
+
+[dev-packages]
 
 [requires]
 python_version = "3.10"

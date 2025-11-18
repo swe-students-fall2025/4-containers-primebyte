@@ -24,5 +24,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Run pytest
-        run: python -m pytest
+      - name: Run pytest with coverage
+        run: |
+          python -m pytest --cov=. --cov-report=term --cov-report=html
+          python -m coverage report --fail-under=80

@@ -41,14 +41,114 @@ def fake_decibels() -> float:
     return round(base, 1)
 
 
+def _get_real_decibel_history(limit=500):
+    """Fetch recent real microphone decibel readings from MongoDB.
+
+    We use these as training data for k-means.
+    """
+    db = get_db()
+    coll = db["measurements"]
+
+    cursor = (
+        coll.find(
+            {
+                "source": "real",
+                "rms_db": {"$ne": None},
+            }
+        )
+        .sort("ts", -1)
+        .limit(limit)
+    )
+
+    values = []
+    for doc in cursor:
+        try:
+            values.append(float(doc.get("rms_db", 0.0)))
+        except (TypeError, ValueError):
+            # Skip malformed values
+            continue
+    return values
+
+
+def _kmeans_1d(values, k=5, max_iters=20):
+    """Simple 1-D k-means implementation using pure Python.
+
+    Returns a list of k cluster centroids.
+    """
+    if not values:
+        return []
+
+    values = list(values)
+    n = len(values)
+    k = min(k, n)  # never more clusters than points
+
+    # If we have very few points, just use unique values as "centers"
+    if n <= k:
+        # pad if needed by repeating the last value
+        centers = sorted(set(values))
+        while len(centers) < k:
+            centers.append(centers[-1])
+        return centers
+
+    values_sorted = sorted(values)
+
+    # Initialize centers by picking evenly spaced points in the sorted list
+    step = n / float(k)
+    centers = [values_sorted[int(i * step)] for i in range(k)]
+
+    for _ in range(max_iters):
+        clusters = [[] for _ in range(k)]
+
+        # Assign each value to the nearest center
+        for v in values:
+            nearest_idx = min(range(k), key=lambda i, val=v: abs(val - centers[i]))
+            clusters[nearest_idx].append(v)
+
+        new_centers = centers[:]
+        for i in range(k):
+            if clusters[i]:
+                new_centers[i] = sum(clusters[i]) / float(len(clusters[i]))
+
+        # Check for convergence
+        if all(abs(new_centers[i] - centers[i]) < 1e-3 for i in range(k)):
+            centers = new_centers
+            break
+
+        centers = new_centers
+
+    return centers
+
+
 def classify_noise_ml(decibels: float) -> str:
     """ML-based classification using k-means clustering.
 
-    TODO: Implement k-means clustering for noise classification.
-    This will replace the hardcoded thresholds when real data is available.
+    Uses recent real microphone readings from MongoDB as training data.
+    If we don't have enough data yet, falls back to the hardcoded thresholds.
     """
-    # Placeholder - will implement k-means clustering
-    return classify_noise_hardcoded(decibels)
+    history = _get_real_decibel_history(limit=500)
+
+    # Not enough data to cluster yet – use the simple thresholds
+    if len(history) < 10:
+        return classify_noise_hardcoded(decibels)
+
+    centers = _kmeans_1d(history, k=5)
+
+    if not centers:
+        return classify_noise_hardcoded(decibels)
+
+    # Sort centers from quietest to loudest
+    ordered = sorted(enumerate(centers), key=lambda pair: pair[1])
+
+    # Map cluster index -> label based on center order
+    labels_in_order = ["silent", "quiet", "normal", "loud", "very_loud"]
+    cluster_to_label = {}
+
+    for label, (idx, _) in zip(labels_in_order, ordered):
+        cluster_to_label[idx] = label
+
+    # Find the nearest center for this decibel value
+    nearest_idx = min(range(len(centers)), key=lambda i: abs(decibels - centers[i]))
+    return cluster_to_label.get(nearest_idx, "unknown")
 
 
 def classify_noise_hardcoded(decibels: float) -> str:
