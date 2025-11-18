@@ -85,7 +85,7 @@ body {
 .quiet { color: #27ae60; }
 .normal { color: #f39c12; }
 .loud { color: #e74c3c; }
-.very-loud { color: #c0392b; }
+.very_loud { color: #c0392b; }
 
 .chart-container {
     height: 300px;
