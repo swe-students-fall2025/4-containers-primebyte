@@ -108,6 +108,13 @@ function initializeCharts() {
                 const timestamps = data.timestamps || [];
                 const decibels = data.decibels || [];
 
+                // Convert timestamps to readable format for x-axis labels
+                const readableTimestamps = timestamps.map(timestamp => {
+                    const date = new Date(timestamp);
+                    return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+                });
+
+
                 if (timestamps.length === 0 || decibels.length === 0) {
                     console.log('No history data available yet for chart');
                     return;
@@ -115,7 +122,7 @@ function initializeCharts() {
 
                 if (noiseHistoryChart) {
                     // Update existing chart
-                    noiseHistoryChart.data.labels = timestamps;
+                    noiseHistoryChart.data.labels = readableTimestamps;
                     noiseHistoryChart.data.datasets[0].data = decibels;
                     noiseHistoryChart.update('none'); // Silent update without animations
                 } else {
@@ -124,7 +131,7 @@ function initializeCharts() {
                     noiseHistoryChart = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: timestamps,
+                            labels: readableTimestamps,
                             datasets: [
                                 {
                                     label: 'Decibels (dB)',
