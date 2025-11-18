@@ -66,7 +66,7 @@ All services read configuration from `.env` in the repo root. Simply copying `.e
 **Key variables:**
 
 - `MONGODB_URL` – e.g. `mongodb://mongodb:27017/noise_monitor`
-- `ML_CLIENT_INTERVAL_SECONDS` – loop interval in seconds (default `5`)
+- `ML_CLIENT_INTERVAL_SECONDS` – loop interval in seconds (default `1`)
 - `USE_FAKE_DATA`
   - `true` – ML client generates synthetic measurements
   - `false` – web app sends real mic readings, ML client classifies them

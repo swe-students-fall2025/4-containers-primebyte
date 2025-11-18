@@ -22,9 +22,9 @@ def get_db():
 def get_interval_seconds() -> int:
     """Read loop interval (seconds) from env, with a safe default."""
     try:
-        return int(os.getenv("ML_CLIENT_INTERVAL_SECONDS", "5"))
+        return int(os.getenv("ML_CLIENT_INTERVAL_SECONDS", "1"))
     except ValueError:
-        return 5
+        return 1
 
 
 def use_fake_data() -> bool:
